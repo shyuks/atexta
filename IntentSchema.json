@@ -1,0 +1,52 @@
+{
+  "intents" : [
+    {
+      "intent" : "SecretIntent"
+    },
+    {
+      "intent" : "QuickMessageIntent",
+      "slots" : [
+        {
+          "name" : "QuickMessage",
+          "type" : "AMAZON.LITERAL"
+        }
+      ]
+    },
+    {
+      "intent" : "MyMessageIntent",
+      "slots" : [
+        {
+          "name" : "MyMessage",
+          "type" : "AMAZON.LITERAL"
+        }
+      ]
+    },
+    {
+      "intent" : "RecipientIntent",
+      "slots" : [
+        {
+          "name" : "Group",
+          "type" : "AMAZON.LITERAL"
+        }
+      ]
+    },
+    {
+      "intent" : "NewMessageIntent",
+      "slots" : [
+        {
+          "name" : "NewMessage",
+          "type" : "MESSAGE_MEDIUM"
+        }
+      ]
+    },
+    {
+      "intent" : "MessageInputIntent",
+      "slots" : [
+        {
+          "name" : "MessageInput",
+          "type" : "AMAZON.LITERAL"
+        }
+      ]
+    }
+  ]
+}
