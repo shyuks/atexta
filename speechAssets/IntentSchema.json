@@ -13,15 +13,6 @@
       ]
     },
     {
-      "intent" : "MyMessageIntent",
-      "slots" : [
-        {
-          "name" : "MyMessage",
-          "type" : "AMAZON.LITERAL"
-        }
-      ]
-    },
-    {
       "intent" : "RecipientIntent",
       "slots" : [
         {
@@ -47,6 +38,15 @@
           "type" : "AMAZON.LITERAL"
         }
       ]
+    },
+    {
+      "intent": "AMAZON.HelpIntent"
+    },
+    {
+      "intent": "AMAZON.StopIntent"
+    },
+    {
+      "intent": "AMAZON.CancelIntent"
     }
   ]
 }
