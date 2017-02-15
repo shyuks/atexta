@@ -1,0 +1,24 @@
+SecretIntent Play my favorite song
+
+QuickMessageIntent Send quick Message {working late|QuickMessage} using LITERAL
+QuickMessageIntent Send quick Message {running late|QuickMessage} using LITERAL
+QuickMessageIntent Send quick Message {coming|QuickMessage} using LITERAL
+QuickMessageIntent Send quick Message {meeting message eight|QuickMessage} using LITERAL
+QuickMessageIntent Send quick Message {quick family alert|QuickMessage} using LITERAL
+QuickMessageIntent Send quick Message {friend notification|QuickMessage} using LITERAL
+QuickMessageIntent Send quick Message {alert for work group|QuickMessage} using LITERAL
+
+RecipientIntent Send To {HRLA twelve|Group} using LITERAL
+RecipientIntent Send To {My Friends|Group} using LITERAL
+RecipientIntent Send To {Mike|Group} using LITERAL
+RecipientIntent Send To {Business Group Three|Group} using LITERAL
+
+NewMessageIntent Send New {NewMessage} Message 
+
+MessageInputIntent Send Message Saying {Call me when you get a change|MessageInput} using LITERAL
+MessageInputIntent Send Message Saying {Where are you|MessageInput} using LITERAL
+MessageInputIntent Send Message Saying {I will be there in twenty minutes|MessageInput} using LITERAL
+MessageInputIntent Send Message Saying {Hello|MessageInput} using LITERAL
+MessageInputIntent Send Message Saying {I'm coming|MessageInput} using LITERAL
+MessageInputIntent Send Message Saying {Don't forget to bring dinner|MessageInput} using LITERAL
+MessageInputIntent Send Message Saying {Heading out for a little while|MessageInput} using LITERAL
