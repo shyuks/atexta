@@ -1,5 +1,5 @@
 var APP_ID = "amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f";
-var AlexaSkill = require('./AlexsaSkill');
+var Alexa = require("alexa-sdk");
 var http = require ('http');
 var https = require ('https');
 var helpText = "Hello there!";
