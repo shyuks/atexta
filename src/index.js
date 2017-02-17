@@ -1,5 +1,5 @@
+var Alexa = require('alexa-sdk');
 var APP_ID = "amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f";
-var Alexa = require("alexa-sdk");
 var http = require ('http');
 var https = require ('https');
 var helpText = "Hello there!";
@@ -7,8 +7,11 @@ var askRecipient = "To who should I send the message?";
 var getMessage = "What should I send?";
 var querystring = require('querystring');
 
-var Atexta = function (){
-  AlexaSkill.call(this,APP_ID);
+exports.handler = (event, context, callback) => {
+  var alexa = Alexa.handler(event, context);
+  alexa.appId = APP_ID;
+  alexa.registerHandlers(handlers);
+  alexa.execute();
 };
 
 var sendInstructions = (intentValue) => {
@@ -82,7 +85,8 @@ var getUserInfo = (token) => {
   })
 }
 
-Atexta.prototype = Object.create(AlexaSkill.prototype);
+
+Atexta.prototype = Object.create(Alexa.prototype);
 
 Atexta.prototype.constructor = Atexta;
 
@@ -91,7 +95,7 @@ Atexta.prototype.eventHandlers.onSessionStarted = function (sessionStartedReques
     var text = "Link skill to amazon account for use."
     var output = {
       speech : text,
-      type : AlexaSkill.speechOutputTYpe.PlainText
+      type : Alexa.speechOutputType.PlainText
     }
     response.tellWithCard(output);
 
@@ -102,7 +106,7 @@ Atexta.prototype.eventHandlers.onSessionStarted = function (sessionStartedReques
      var text = "User account verified"
      var output = {
       speech : text,
-      type : AlexaSkill.speechOutputTYpe.PlainText
+      type : Alexa.speechOutputType.PlainText
     }
     response.tellWithCard(output); 
     })
@@ -110,7 +114,7 @@ Atexta.prototype.eventHandlers.onSessionStarted = function (sessionStartedReques
      var text = "I'm having a hard time getting your information"
      var output = {
       speech : text,
-      type : AlexaSkill.speechOutputTYpe.PlainText
+      type : Alexa.speechOutputType.PlainText
     }
     response.tellWithCard(output);     
     })
@@ -133,7 +137,7 @@ Atexta.prototype.intentHandlers = {
     .then(result => {
       var output = {
         speech : result,
-        type : AlexaSkill.speechOutputType.PlainText
+        type : Alexa.speechOutputType.PlainText
       };
     
       response.tellWithCard(output);
@@ -152,7 +156,7 @@ Atexta.prototype.intentHandlers = {
         
         var output = {
           speech : res,
-          type : AlexaSkill.speechOutputType.PlainText
+          type : Alexa.speechOutputType.PlainText
         }
         
         response.tellWithCard(output);
@@ -164,7 +168,7 @@ Atexta.prototype.intentHandlers = {
         
       var output = {
         speech : "<speak>An error occured, please try again</speak>",
-        type : AlexaSkill.speechOutput.SSML
+        type : Alexa.speechOutput.SSML
       }
       
       response.tellWithCard(output);
@@ -180,7 +184,7 @@ Atexta.prototype.intentHandlers = {
           
         var output = {
           speech : result,
-          type : AlexaSkill.speechOutputType.PlainText
+          type : Alexa.speechOutputType.PlainText
         }
         
         response.tellWithCard(output);
@@ -189,7 +193,7 @@ Atexta.prototype.intentHandlers = {
           
         var output = {
           speech : "<speak>An error occured, please try again</speak>",
-          type : AlexaSkill.speechOutputType.PlainText
+          type : Alexa.speechOutputType.PlainText
         }
         
         response.tellWithCard(output);
@@ -210,9 +214,4 @@ Atexta.prototype.intentHandlers = {
         
         response.ask(askRecipient)
     }
-};
-
-exports.handler = function (event, context) {
-  var atexta = new Atexta();
-  atexta.execute(event, context);
 };

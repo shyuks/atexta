@@ -1,22 +1,25 @@
 {
   "name": "atexta",
   "version": "1.0.0",
-  "description": "\"an alexa message automation system\"",
+  "description": "an alexa message automation system",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "https://www.github.com/atexta/atexta.git"
+    "url": "git+https://github.com/atexta/atexta.git"
   },
   "keywords": [
     "atexta",
-    "lambda",
-    "server"
+    "lambda"
   ],
   "author": "",
   "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/atexta/atexta/issues"
+  },
+  "homepage": "https://github.com/atexta/atexta#readme",
   "dependencies": {
     "alexa-sdk": "^1.0.7"
   }
