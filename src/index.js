@@ -2,89 +2,126 @@ var Alexa = require('alexa-sdk');
 var APP_ID = "amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f";
 var http = require ('http');
 var https = require ('https');
-var helpText = "Hello there!";
-var askRecipient = "To who should I send the message?";
-var getMessage = "What should I send?";
 var querystring = require('querystring');
+
+var ATEXTA_STATES = {
+  START: "_STARTMODE", // Entry point, start the game.
+  MESSAGE: "_MESSAGEMODE", // Asking trivia questions.
+  HELP: "_HELPMODE"
+};
+
+var languageString = {
+  "en-US": {
+    "translation": {
+      "WELCOME_MESSAGE": "Hello, how may I help you? ",
+      "WELCOME_REPROMPT": "Tell me a command, or say help for detailed options",
+      "HELP_MESSAGE": "You can send a pre-saved quick message by saying, send quick message. " +
+      "Or send a new custom message by saying, send custom message.",
+      // "REPEAT_MESSAGE": "To repeat the last question, say, repeat. ",
+      // "ASK_MESSAGE_START": "Would you like to start playing?",
+      // "HELP_REPROMPT": "To give an answer to a question, respond with the number of the answer. ",
+      // "STOP_MESSAGE": "Would you like to keep playing?",
+      "CANCEL_MESSAGE": "Ok, let me know if you change your mind.",
+      "NO_MESSAGE": "Ok, we\'ll play another time. Goodbye!",
+      // "TRIVIA_UNHANDLED": "Try saying a number between 1 and %s",
+      // "HELP_UNHANDLED": "Say yes to continue, or no to end the game.",
+      "START_UNHANDLED": "Sorry, I didn\'t get that. What would you like to do? ",
+      "LINK_ACCOUNT": "It seems as though your account isn't linked yet. " + 
+      "Please log in to your account through the Amazon Alexa app. "
+    }
+  }
+}
 
 exports.handler = (event, context, callback) => {
   var alexa = Alexa.handler(event, context);
   alexa.appId = APP_ID;
+  alexa.resources = languageString;
   alexa.registerHandlers(handlers);
   alexa.execute();
 };
 
-var sendInstructions = (intentValue) => {
-  return new Promise ((resolve, reject) => {
-    var postData = querystring.stringify({
-        'Alexa IntentRequest' : JSON.stringify(intentValue)
-    })
-    var options = {
-      hostname : 'enigmatic-wildwood-66230.herokuapp.com',
-      path :'/fromAlexa',
-      method : 'POST',
-      headers : {
-          'Content-Type' : 'application/x-www-form-urlencoded',
-          'Content-Length': Buffer.byteLength(postData)
-      }
-    }
-    var endReq = (body) => {
-        req.end;
-        resolve(body);
-    }
-    var req = http.request(options, (res) => {
-      var body = '';
-      res.on('data', (d) => {
-          body += d;
+var newSessionHandlers = {
+  "LaunchRequest": function () {
+    this.handler.state = ATEXTA_STATES.START;
+    this.emitWithState("StartRequest", true);
+  },
+  "AMAZON.StartOverIntent": function() {
+    this.handler.state = ATEXTA_STATES.START;
+    this.emitWithState("StartRequest", true);
+  },
+  "AMAZON.HelpIntent": function() {
+    this.handler.state = ATEXTA_STATES.HELP;
+    this.emitWithState("helpTheUser", true);
+  },
+  "Unhandled": function () {
+    var speechOutput = this.t("START_UNHANDLED");
+    this.emit(":ask", speechOutput, speechOutput);
+  }
+};
+
+var startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
+  
+  "StartRequest": function () {
+    let accessToken = this.event.session.user.accessToken;             
+    
+    if (accessToken) {           
+      var speechOutput = this.t("WELCOME_MESSAGE");
+      var repromptText = this.t("WELCOME_REPROMPT");
+      
+      getUserInfo(accessToken)
+      .then(result => {
+        Object.assign(this.attributes, {
+          // "speechOutput": repromptText,
+          // "repromptText": repromptText,
+          "AuthUserInfo": accessToken 
         });
 
-      res.on('error', (e) => {
-        reject(e);
-      });
+        this.handler.state = ATEXTA_STATES.MESSAGE;
+        this.emit(":ask", speechOutput, repromptText);
+      })
+      .catch(error => {
+        this.emit(':tellWithLinkAccountCard', error);
+      })
 
-      res.on('end', function(){
-      endReq(body);
-      });
-    });
-    req.write(postData);
-  })
-}
-
-var getUserInfo = (token) => {
-  return new Promise ((resolve, reject) => {
-  var options = {
-  "method": "GET",
-  "hostname": "rakan.auth0.com",
-  "port": null,
-  "path": "/userinfo",
-  "headers": {
-    "authorization": `Bearer ${token}`,
-    "cache-control": "no-cache"
+    
+    } else {
+      var speechOutput = this.t("LINK_ACCOUNT");
+      this.emit(':tellWithLinkAccountCard', speechOutput)
     }
-  };
-  var body = '';
-  var req = https.request(options, res => {
-      res.on('data', d => {
-          body += d;
-      })
-      
-      res.on('error', e => {
-          reject(e);
-      })
-      
-      res.on('end', ()=>{
-          resolve(body);
-      })
-  })
-  
-  req.on('error', e => {
-        reject(e);
-  })
-  
-  req.end();
-  })
-}
+  }
+});
 
+var messageStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
+  
+  "StartRequest": function (newMsg) {
+    let accessToken = this.event.session.user.accessToken;             
+    
+    if (accessToken) {           
+      var speechOutput = this.t("WELCOME_MESSAGE");
+      var repromptText = this.t("WELCOME_REPROMPT");
+      
+      getUserInfo(accessToken)
+      .then(result => {
+        Object.assign(this.attributes, {
+          // "speechOutput": repromptText,
+          // "repromptText": repromptText,
+          "AuthUserInfo": accessToken 
+        });
+
+        this.handler.state = ATEXTA_STATES.MESSAGE;
+        this.emit(":ask", speechOutput, repromptText);
+      })
+      .catch(error => {
+        this.emit(':tellWithLinkAccountCard', error);
+      })
+
+    
+    } else {
+      var speechOutput = this.t("LINK_ACCOUNT");
+      this.emit(':tellWithLinkAccountCard', speechOutput)
+    }
+  }
+});
 
 Atexta.prototype = Object.create(Alexa.prototype);
 
@@ -215,3 +252,74 @@ Atexta.prototype.intentHandlers = {
         response.ask(askRecipient)
     }
 };
+
+var sendInstructions = (intentValue) => {
+  return new Promise ((resolve, reject) => {
+    var postData = querystring.stringify({
+        'Alexa IntentRequest' : JSON.stringify(intentValue)
+    })
+    var options = {
+      hostname : 'enigmatic-wildwood-66230.herokuapp.com',
+      path :'/fromAlexa',
+      method : 'POST',
+      headers : {
+          'Content-Type' : 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(postData)
+      }
+    }
+    var endReq = (body) => {
+        req.end;
+        resolve(body);
+    }
+    var req = http.request(options, (res) => {
+      var body = '';
+      res.on('data', (d) => {
+          body += d;
+        });
+
+      res.on('error', (e) => {
+        reject(e);
+      });
+
+      res.on('end', function(){
+      endReq(body);
+      });
+    });
+    req.write(postData);
+  })
+}
+
+var getUserInfo = (token) => {
+  return new Promise ((resolve, reject) => {
+  var options = {
+  "method": "GET",
+  "hostname": "rakan.auth0.com",
+  "port": null,
+  "path": "/userinfo",
+  "headers": {
+    "authorization": `Bearer ${token}`,
+    "cache-control": "no-cache"
+    }
+  };
+  var body = '';
+  var req = https.request(options, res => {
+    res.on('data', d => {
+      body += d;
+    })
+    
+    res.on('error', e => {
+      reject(e);
+    })
+    
+    res.on('end', ()=>{
+      resolve(body);
+    })
+  })
+  
+  req.on('error', e => {
+    reject(e);
+  })
+
+  req.end();
+  })
+}
