@@ -5,8 +5,10 @@ var https = require ('https');
 var querystring = require('querystring');
 
 var ATEXTA_STATES = {
-  START: "_STARTMODE", // Entry point, start the game.
-  MESSAGE: "_MESSAGEMODE", // Asking trivia questions.
+  START: "_STARTMODE",
+  MESSAGE: "_MESSAGEMODE",
+  QUICK: "_QUICKMODE",
+  CUSTOM: "_CUSTOMMODE",
   HELP: "_HELPMODE"
 };
 
@@ -27,7 +29,9 @@ var languageString = {
       // "HELP_UNHANDLED": "Say yes to continue, or no to end the game.",
       "START_UNHANDLED": "Message unhandled. Sorry, I didn\'t get that. What would you like to do? ",
       "LINK_ACCOUNT": "It seems as though your account isn't linked yet. " + 
-      "Please open your Amazon Alexa app and sign into Atexta. "
+      "Please open your Amazon Alexa app and sign into Atexta. ",
+      "SECRET_CONFIRM" : "%s has been sent. ",
+      "SECRET_ERROR" : "Hmm, I didn\'t get that, can you please repeat yourself? "
     }
   }
 }
@@ -100,24 +104,33 @@ let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
 
 var messageStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.MESSAGE, {
   let req = this.event.request.intent.slots;
-  let speechOutput = 'new string'
 
-  "SecretIntent": function () {
+  "SecretIntent": () => {
     let secretMsg = req.SecretMessage.value;
+    let speechOutput = 'inside secret intent';
+    let cardTitle = "Atexta";
+    let cardContent = this.t("SECRET_CONFIRM", secretMsg);
     //check database for secret message, bring back medium and group
 
     //pending on medium, trigger one of the functionalities to the group
     
 
 
-    this.emit(':tellWithCard', speechOutput, cardTitle, cardContent, imageObj)
+    this.emit(':tellWithCard', speechOutput, cardTitle, cardContent)
+
+    //if can't find secret message
+    
+    this.emit(':ask')
   }
   
   "QuickMessageIntent": function () {
     let quickMsg = req.QuickMessage.value;             
-    
-    //check database for quickMsg and group
+    this.handler.state = ATEXTA_STATES.QUICK;
+    this.emitWithState("StartRequest");
 
+    //change state to Quick and 
+    //check database for quickMsg and group
+  
     //if group is empty, send to recipientIntent
 
   });
@@ -131,9 +144,9 @@ var messageStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.MESSAGE, {
 
   });
 
-
-
 });
+
+
 
 Atexta.prototype = Object.create(Alexa.prototype);
 
