@@ -14,7 +14,7 @@ var languageString = {
   "en-US": {
     "translation": {
       "WELCOME_MESSAGE": "Hello, how may I help you? ",
-      "WELCOME_REPROMPT": "Tell me a command, or say help for detailed options",
+      "WELCOME_REPROMPT": "Tell me a command, or you can ask for help. ",
       "HELP_MESSAGE": "You can send a pre-saved quick message by saying, send quick message. " +
       "Or send a new custom message by saying, send custom message.",
       // "REPEAT_MESSAGE": "To repeat the last question, say, repeat. ",
@@ -25,102 +25,114 @@ var languageString = {
       "NO_MESSAGE": "Ok, we\'ll play another time. Goodbye!",
       // "TRIVIA_UNHANDLED": "Try saying a number between 1 and %s",
       // "HELP_UNHANDLED": "Say yes to continue, or no to end the game.",
-      "START_UNHANDLED": "Sorry, I didn\'t get that. What would you like to do? ",
+      "START_UNHANDLED": "Message unhandled. Sorry, I didn\'t get that. What would you like to do? ",
       "LINK_ACCOUNT": "It seems as though your account isn't linked yet. " + 
-      "Please log in to your account through the Amazon Alexa app. "
+      "Please open your Amazon Alexa app and sign into Atexta. "
     }
   }
 }
 
 exports.handler = (event, context, callback) => {
-  var alexa = Alexa.handler(event, context);
+  let alexa = Alexa.handler(event, context);
   alexa.appId = APP_ID;
   alexa.resources = languageString;
   alexa.registerHandlers(handlers);
   alexa.execute();
 };
 
-var newSessionHandlers = {
-  "LaunchRequest": function () {
+let newSessionHandlers = {
+  "LaunchRequest": () => {
     this.handler.state = ATEXTA_STATES.START;
-    this.emitWithState("StartRequest", true);
+    this.emitWithState("StartRequest");
   },
-  "AMAZON.StartOverIntent": function() {
+  "AMAZON.StartOverIntent": () => {
     this.handler.state = ATEXTA_STATES.START;
-    this.emitWithState("StartRequest", true);
+    this.emitWithState("StartRequest");
   },
-  "AMAZON.HelpIntent": function() {
+  "AMAZON.HelpIntent": () => {
     this.handler.state = ATEXTA_STATES.HELP;
-    this.emitWithState("helpTheUser", true);
+    this.emitWithState("helpTheUser");
   },
-  "Unhandled": function () {
+  "Unhandled": () => {
     var speechOutput = this.t("START_UNHANDLED");
     this.emit(":ask", speechOutput, speechOutput);
   }
 };
 
-var startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
+let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
   
-  "StartRequest": function () {
+  "StartRequest": () => {
     let accessToken = this.event.session.user.accessToken;             
     
     if (accessToken) {           
-      var speechOutput = this.t("WELCOME_MESSAGE");
-      var repromptText = this.t("WELCOME_REPROMPT");
+      let speechOutput = this.t("WELCOME_MESSAGE");
+      let repromptText = this.t("WELCOME_REPROMPT");
       
+      //check to see if user has email stored in session
+      
+      //if no,
+      // get user email for future calls
       getUserInfo(accessToken)
       .then(result => {
+        //save email to session for future calls?
         Object.assign(this.attributes, {
           // "speechOutput": repromptText,
           // "repromptText": repromptText,
           "AuthUserInfo": accessToken 
         });
 
+        //if yes, send directly to messages with email
+
         this.handler.state = ATEXTA_STATES.MESSAGE;
         this.emit(":ask", speechOutput, repromptText);
       })
       .catch(error => {
-        this.emit(':tellWithLinkAccountCard', error);
+        this.emit(':tell', "Error in getting user info. ");
       })
 
     
     } else {
-      var speechOutput = this.t("LINK_ACCOUNT");
+      let speechOutput = this.t("LINK_ACCOUNT");
       this.emit(':tellWithLinkAccountCard', speechOutput)
     }
   }
 });
 
-var messageStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
-  
-  "StartRequest": function (newMsg) {
-    let accessToken = this.event.session.user.accessToken;             
-    
-    if (accessToken) {           
-      var speechOutput = this.t("WELCOME_MESSAGE");
-      var repromptText = this.t("WELCOME_REPROMPT");
-      
-      getUserInfo(accessToken)
-      .then(result => {
-        Object.assign(this.attributes, {
-          // "speechOutput": repromptText,
-          // "repromptText": repromptText,
-          "AuthUserInfo": accessToken 
-        });
+var messageStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.MESSAGE, {
+  let req = this.event.request.intent.slots;
+  let speechOutput = 'new string'
 
-        this.handler.state = ATEXTA_STATES.MESSAGE;
-        this.emit(":ask", speechOutput, repromptText);
-      })
-      .catch(error => {
-        this.emit(':tellWithLinkAccountCard', error);
-      })
+  "SecretIntent": function () {
+    let secretMsg = req.SecretMessage.value;
+    //check database for secret message, bring back medium and group
 
+    //pending on medium, trigger one of the functionalities to the group
     
-    } else {
-      var speechOutput = this.t("LINK_ACCOUNT");
-      this.emit(':tellWithLinkAccountCard', speechOutput)
-    }
+
+
+    this.emit(':tellWithCard', speechOutput, cardTitle, cardContent, imageObj)
   }
+  
+  "QuickMessageIntent": function () {
+    let quickMsg = req.QuickMessage.value;             
+    
+    //check database for quickMsg and group
+
+    //if group is empty, send to recipientIntent
+
+  });
+
+  "NewMessageIntent": function () {
+    let quickMsg = req.QuickMessage.value;             
+    
+    //check database for quickMsg and group
+
+    //if group is empty, send to recipientIntent
+
+  });
+
+
+
 });
 
 Atexta.prototype = Object.create(Alexa.prototype);
