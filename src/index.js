@@ -5,10 +5,10 @@ var https = require ('https');
 var querystring = require('querystring');
 
 var ATEXTA_STATES = {
+  VALIDATE: "_VALIDATEMODE",
   START: "_STARTMODE",
-  MESSAGE: "_MESSAGEMODE",
-  QUICK: "_QUICKMODE",
-  CUSTOM: "_CUSTOMMODE",
+  QUICKMSG: "_QUICKMESSAGEMODE",
+  NEWMSG: "_NEWMESSAGEMODE",
   HELP: "_HELPMODE"
 };
 
@@ -46,12 +46,12 @@ exports.handler = (event, context, callback) => {
 
 let newSessionHandlers = {
   "LaunchRequest": () => {
-    this.handler.state = ATEXTA_STATES.START;
-    this.emitWithState("StartRequest");
+    this.handler.state = ATEXTA_STATES.VALIDATE;
+    this.emitWithState("ValidateUser");
   },
   "AMAZON.StartOverIntent": () => {
-    this.handler.state = ATEXTA_STATES.START;
-    this.emitWithState("StartRequest");
+    this.handler.state = ATEXTA_STATES.VALIDATE;
+    this.emitWithState("ValidateUser");
   },
   "AMAZON.HelpIntent": () => {
     this.handler.state = ATEXTA_STATES.HELP;
@@ -63,9 +63,13 @@ let newSessionHandlers = {
   }
 };
 
-let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
+let validateStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.VALIDATE, {
   
-  "StartRequest": () => {
+  "ValidateUser": () => {
+    if (this.attributes["userEmail"]) {
+      this.handler.state = ATEXTA_STATES.START
+    }
+    
     let accessToken = this.event.session.user.accessToken;             
     
     if (accessToken) {           
@@ -87,7 +91,7 @@ let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
 
         //if yes, send directly to messages with email
 
-        this.handler.state = ATEXTA_STATES.MESSAGE;
+        this.handler.state = ATEXTA_STATES.START;
         this.emit(":ask", speechOutput, repromptText);
       })
       .catch(error => {
@@ -102,7 +106,7 @@ let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
   }
 });
 
-var messageStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.MESSAGE, {
+let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
   let req = this.event.request.intent.slots;
 
   "SecretIntent": () => {
@@ -123,27 +127,46 @@ var messageStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.MESSAGE, {
     this.emit(':ask')
   }
   
-  "QuickMessageIntent": function () {
-    let quickMsg = req.QuickMessage.value;             
-    this.handler.state = ATEXTA_STATES.QUICK;
-    this.emitWithState("StartRequest");
+  "QuickMessageIntent": () => {
+    this.attributes["quickMsg"] = req.QuickMessage.value;             
 
-    //change state to Quick and 
-    //check database for quickMsg and group
-  
-    //if group is empty, send to recipientIntent
-
+    this.handler.state = ATEXTA_STATES.QUICKMSG;
+    this.emitWithState("StartQuick", quickMsg);
   });
 
   "NewMessageIntent": function () {
-    let quickMsg = req.QuickMessage.value;             
-    
-    //check database for quickMsg and group
+    this.attributes["newMsg"] = req.NewMessage.value;    
 
-    //if group is empty, send to recipientIntent
-
+    this.handler.state = ATEXTA_STATES.NEWMSG
   });
 
+});
+
+let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICKMSG, {
+  let req = this.event.request.intent.slots;
+
+  "StartQuick": (quickMsg) => {
+    //check database for msg and group
+    //if no group, save msg to attributes and send to recipientintent
+
+    //if no msg, send error/reprompt
+
+    //if msg and group exist? send confirmation(yes/no)
+  }
+
+  //recipientIntent
+    //check for group, find medium, send accordingly, tellwithcard
+    //if no group, reprompt
+
+  //yes intent
+  
+  //no intent
+
+  //help intent
+
+  //cancel intent
+
+  //stop intent
 });
 
 
