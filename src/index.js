@@ -1,4 +1,5 @@
-var Alexa = require('alexa-sdk');
+"use strict";
+var Alexa = require("alexa-sdk");
 var APP_ID = "amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f";
 var http = require ('http');
 var https = require ('https');
@@ -36,338 +37,348 @@ var languageString = {
   }
 }
 
-exports.handler = (event, context, callback) => {
+exports.handler = function(event, context, callback) {
   let alexa = Alexa.handler(event, context);
   alexa.appId = APP_ID;
   alexa.resources = languageString;
-  alexa.registerHandlers(handlers);
+  alexa.registerHandlers(newSessionHandlers, validateStateHandlers);
   alexa.execute();
 };
 
 let newSessionHandlers = {
-  "LaunchRequest": () => {
+  "LaunchRequest": function() {;
     this.handler.state = ATEXTA_STATES.VALIDATE;
-    this.emitWithState("ValidateUser");
-  },
-  "AMAZON.StartOverIntent": () => {
-    this.handler.state = ATEXTA_STATES.VALIDATE;
-    this.emitWithState("ValidateUser");
-  },
-  "AMAZON.HelpIntent": () => {
-    this.handler.state = ATEXTA_STATES.HELP;
-    this.emitWithState("helpTheUser");
-  },
-  "Unhandled": () => {
-    var speechOutput = this.t("START_UNHANDLED");
-    this.emit(":ask", speechOutput, speechOutput);
+    this.emitWithState("Validate");
   }
+  // "AMAZON.StartOverIntent": () => {
+  //   this.handler.state = ATEXTA_STATES.VALIDATE;
+  //   this.emitWithState("ValidateUser");
+  // },
+  // "AMAZON.HelpIntent": () => {
+  //   this.handler.state = ATEXTA_STATES.HELP;
+  //   this.emitWithState("helpTheUser");
+  // },
+  // "Unhandled": () => {
+  //   let speechOutput = this.t("START_UNHANDLED");
+  //   this.emit(":ask", speechOutput, speechOutput);
+  // }
 };
 
 let validateStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.VALIDATE, {
   
-  "ValidateUser": () => {
-    if (this.attributes["userEmail"]) {
-      this.handler.state = ATEXTA_STATES.START
-    }
+  "Validate": function() {
+    this.emit(":tell", "welcome");
+    // if (this.attributes["userEmail"]) {
+    //   this.handler.state = ATEXTA_STATES.START;
+    //   // update emission
+    //   this.emitWithState("Validated");
     
-    let accessToken = this.event.session.user.accessToken;             
-    
-    if (accessToken) {           
-      let speechOutput = this.t("WELCOME_MESSAGE");
-      let repromptText = this.t("WELCOME_REPROMPT");
+    // } else {
+    //   let accessToken = this.event.session.user.accessToken;             
       
-      //check to see if user has email stored in session
+    //   if (accessToken) {           
+    //     // let speechOutput = this.t("WELCOME_MESSAGE");
+    //     // let repromptText = this.t("WELCOME_REPROMPT");
+        
+    //     // getUserInfo(accessToken)
+    //     // .then(result => {
+    //     //   //save email to session for future calls?
+    //       this.attributes["userEmail"] = "testing"
+    //       // });
+
+    //       //if yes, send directly to messages with email
+
+    //       this.handler.state = ATEXTA_STATES.START;
+    //       this.emitWithState("NewlyValidated");
+    //     // })
+    //     // .catch(error => {
+    //     //   this.emit(":tell", "Error in getting user info. ");
+    //     // })
+
       
-      //if no,
-      // get user email for future calls
-      getUserInfo(accessToken)
-      .then(result => {
-        //save email to session for future calls?
-        Object.assign(this.attributes, {
-          // "speechOutput": repromptText,
-          // "repromptText": repromptText,
-          "AuthUserInfo": accessToken 
-        });
+    //   } else {
+    //     let speechOutput = this.t("LINK_ACCOUNT");
+    //     this.emit(":tellWithLinkAccountCard", speechOutput)
+    //   }
 
-        //if yes, send directly to messages with email
-
-        this.handler.state = ATEXTA_STATES.START;
-        this.emit(":ask", speechOutput, repromptText);
-      })
-      .catch(error => {
-        this.emit(':tell', "Error in getting user info. ");
-      })
-
-    
-    } else {
-      let speechOutput = this.t("LINK_ACCOUNT");
-      this.emit(':tellWithLinkAccountCard', speechOutput)
-    }
-  }
-});
-
-let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
-  let req = this.event.request.intent.slots;
-
-  "SecretIntent": () => {
-    let secretMsg = req.SecretMessage.value;
-    let speechOutput = 'inside secret intent';
-    let cardTitle = "Atexta";
-    let cardContent = this.t("SECRET_CONFIRM", secretMsg);
-    //check database for secret message, bring back medium and group
-
-    //pending on medium, trigger one of the functionalities to the group
-    
-
-
-    this.emit(':tellWithCard', speechOutput, cardTitle, cardContent)
-
-    //if can't find secret message
-    
-    this.emit(':ask')
-  }
+    // }
+  },
   
-  "QuickMessageIntent": () => {
-    this.attributes["quickMsg"] = req.QuickMessage.value;             
-
-    this.handler.state = ATEXTA_STATES.QUICKMSG;
-    this.emitWithState("StartQuick", quickMsg);
-  });
-
-  "NewMessageIntent": function () {
-    this.attributes["newMsg"] = req.NewMessage.value;    
-
-    this.handler.state = ATEXTA_STATES.NEWMSG
-  });
-
+    "SessionEndedRequest": function () {
+        console.log("Session ended in validate state: " + this.event.request.reason);
+    }
 });
 
-let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICKMSG, {
-  let req = this.event.request.intent.slots;
-
-  "StartQuick": (quickMsg) => {
-    //check database for msg and group
-    //if no group, save msg to attributes and send to recipientintent
-
-    //if no msg, send error/reprompt
-
-    //if msg and group exist? send confirmation(yes/no)
-  }
-
-  //recipientIntent
-    //check for group, find medium, send accordingly, tellwithcard
-    //if no group, reprompt
-
-  //yes intent
+// let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
+//   let req = this.event.request.intent.slots;
   
-  //no intent
+//   "Validated": () => {
+//     this.emit(":ask", "User already has an email validated. Now in start state. What would you like to do? ");
+//   }
 
-  //help intent
+//   "NewlyValidated": () => {
+//     this.emit(":ask", "User is now newly validated. What would you like to do? ");
+//   }
 
-  //cancel intent
+//   "SecretIntent": () => {
+//     let secretMsg = req.SecretMessage.value;
+//     let speechOutput = "inside secret intent";
+//     let cardTitle = "Atexta";
+//     let cardContent = this.t("SECRET_CONFIRM", secretMsg);
+//     //check database for secret message, bring back medium and group
 
-  //stop intent
-});
-
-
-
-Atexta.prototype = Object.create(Alexa.prototype);
-
-Atexta.prototype.constructor = Atexta;
-
-Atexta.prototype.eventHandlers.onSessionStarted = function (sessionStartedRequest, session, response) {
-  if(!session.user.accessToken) {
-    var text = "Link skill to amazon account for use."
-    var output = {
-      speech : text,
-      type : Alexa.speechOutputType.PlainText
-    }
-    response.tellWithCard(output);
-
-  } else {
-    getUserInfo(session.user.accessToken)
-    .then(user => { 
-      session.user['AuthUserInfo'] = user;
-     var text = "User account verified"
-     var output = {
-      speech : text,
-      type : Alexa.speechOutputType.PlainText
-    }
-    response.tellWithCard(output); 
-    })
-    .catch(error => {
-     var text = "I'm having a hard time getting your information"
-     var output = {
-      speech : text,
-      type : Alexa.speechOutputType.PlainText
-    }
-    response.tellWithCard(output);     
-    })
-  }
-};
-
-Atexta.prototype.eventHandlers.onLaunch = function (launchRequest, session, response) {
-    response.ask(helpText, helpText);
-};
-
-Atexta.prototype.eventHandlers.onSessionEnded = function (sessionEndedRequest, session) {
-    session.attributes = {};
-};
-
-Atexta.prototype.intentHandlers = {
+//     //pending on medium, trigger one of the functionalities to the group
     
-	"SecretIntent": function (intent, session, response) {
 
-	sendInstructions(JSON.stringify(session))
-    .then(result => {
-      var output = {
-        speech : result,
-        type : Alexa.speechOutputType.PlainText
-      };
-    
-      response.tellWithCard(output);
-    })
-    },
-    
-	"QuickMessageIntent": function (intent, session, response) {
-		var name = intent.slots.QuickMessage;
-		session.attributes['MessageTrigger'] = name.value;
 
-    sendInstructions(name.value)
-    .then(result => {
+//     this.emit(":tellWithCard", speechOutput, cardTitle, cardContent)
+
+//     //if can't find secret message
+    
+//     this.emit(":ask")
+//   }
+  
+//   "QuickMessageIntent": () => {
+//     this.attributes["quickMsg"] = req.QuickMessage.value;             
+
+//     this.handler.state = ATEXTA_STATES.QUICKMSG;
+//     this.emitWithState("StartQuick", quickMsg);
+//   });
+
+//   "NewMessageIntent": function () {
+//     this.attributes["newMsg"] = req.NewMessage.value;    
+
+//     this.handler.state = ATEXTA_STATES.NEWMSG
+//   });
+
+// });
+
+// let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICKMSG, {
+//   let req = this.event.request.intent.slots;
+
+//   "StartQuick": (quickMsg) => {
+//     //check database for msg and group
+//     //if no group, save msg to attributes and send to recipientintent
+
+//     //if no msg, send error/reprompt
+
+//     //if msg and group exist? send confirmation(yes/no)
+//   }
+
+//   //recipientIntent
+//     //check for group, find medium, send accordingly, tellwithcard
+//     //if no group, reprompt
+
+//   //yes intent
+  
+//   //no intent
+
+//   //help intent
+
+//   //cancel intent
+
+//   //stop intent
+// });
+
+
+
+// Atexta.prototype = Object.create(Alexa.prototype);
+
+// Atexta.prototype.varructor = Atexta;
+
+// Atexta.prototype.eventHandlers.onSessionStarted = function (sessionStartedRequest, session, response) {
+//   if(!session.user.accessToken) {
+//     let text = "Link skill to amazon account for use."
+//     let output = {
+//       speech : text,
+//       type : Alexa.speechOutputType.PlainText
+//     }
+//     response.tellWithCard(output);
+
+//   } else {
+//     getUserInfo(session.user.accessToken)
+//     .then(user => { 
+//       session.user['AuthUserInfo'] = user;
+//      let text = "User account verified"
+//      let output = {
+//       speech : text,
+//       type : Alexa.speechOutputType.PlainText
+//     }
+//     response.tellWithCard(output); 
+//     })
+//     .catch(error => {
+//      let text = "I'm having a hard time getting your information"
+//      let output = {
+//       speech : text,
+//       type : Alexa.speechOutputType.PlainText
+//     }
+//     response.tellWithCard(output);     
+//     })
+//   }
+// };
+
+// Atexta.prototype.eventHandlers.onLaunch = function (launchRequest, session, response) {
+//     response.ask(helpText, helpText);
+// };
+
+// Atexta.prototype.eventHandlers.onSessionEnded = function (sessionEndedRequest, session) {
+//     session.attributes = {};
+// };
+
+// Atexta.prototype.intentHandlers = {
+    
+// 	"SecretIntent": function (intent, session, response) {
+
+// 	sendInstructions(JSON.stringify(session))
+//     .then(result => {
+//       let output = {
+//         speech : result,
+//         type : Alexa.speechOutputType.PlainText
+//       };
+    
+//       response.tellWithCard(output);
+//     })
+//     },
+    
+// 	"QuickMessageIntent": function (intent, session, response) {
+// 		let name = intent.slots.QuickMessage;
+// 		session.attributes['MessageTrigger'] = name.value;
+
+//     sendInstructions(name.value)
+//     .then(result => {
         
-      if(result){
-        var res = "Message sent";
+//       if(result){
+//         let res = "Message sent";
         
-        var output = {
-          speech : res,
-          type : Alexa.speechOutputType.PlainText
-        }
+//         let output = {
+//           speech : res,
+//           type : Alexa.speechOutputType.PlainText
+//         }
         
-        response.tellWithCard(output);
-      } else {
+//         response.tellWithCard(output);
+//       } else {
           
-        response.ask(askRecipient);
-      }
-    }).catch(error => {
+//         response.ask(askRecipient);
+//       }
+//     }).catch(error => {
         
-      var output = {
-        speech : "<speak>An error occured, please try again</speak>",
-        type : Alexa.speechOutput.SSML
-      }
+//       let output = {
+//         speech : "<speak>An error occured, please try again</speak>",
+//         type : Alexa.speechOutput.SSML
+//       }
       
-      response.tellWithCard(output);
-    });
+//       response.tellWithCard(output);
+//     });
 
-    },
+//     },
     
-    "RecipientIntent": function (intent, session, response) {
+//     "RecipientIntent": function (intent, session, response) {
         
-      session.attributes['Group'] = intent.slots.Group.value;
-      sendInstructions(session.attributes)
-      .then(result => {
+//       session.attributes['Group'] = intent.slots.Group.value;
+//       sendInstructions(session.attributes)
+//       .then(result => {
           
-        var output = {
-          speech : result,
-          type : Alexa.speechOutputType.PlainText
-        }
+//         let output = {
+//           speech : result,
+//           type : Alexa.speechOutputType.PlainText
+//         }
         
-        response.tellWithCard(output);
-      })
-      .catch(error => {
+//         response.tellWithCard(output);
+//       })
+//       .catch(error => {
           
-        var output = {
-          speech : "<speak>An error occured, please try again</speak>",
-          type : Alexa.speechOutputType.PlainText
-        }
+//         let output = {
+//           speech : "<speak>An error occured, please try again</speak>",
+//           type : Alexa.speechOutputType.PlainText
+//         }
         
-        response.tellWithCard(output);
-      })
+//         response.tellWithCard(output);
+//       })
 		
 	
-    },
+//     },
     
-    "NewMessageIntent": function (intent, session, response) {
-        var type = intent.slots.NewMessage;
-        session.attributes['Type'] = type.value;
+//     "NewMessageIntent": function (intent, session, response) {
+//         let type = intent.slots.NewMessage;
+//         session.attributes['Type'] = type.value;
 
-        response.ask(getMessage)
-    },
+//         response.ask(getMessage)
+//     },
     
-    "MessageInputIntent" : function (intent, session, response) {
-        session.attributes['CustomMessage'] = intent.slots.MessageInput.value;
+//     "MessageInputIntent" : function (intent, session, response) {
+//         session.attributes['CustomMessage'] = intent.slots.MessageInput.value;
         
-        response.ask(askRecipient)
-    }
-};
+//         response.ask(askRecipient)
+//     }
+// };
 
-var sendInstructions = (intentValue) => {
-  return new Promise ((resolve, reject) => {
-    var postData = querystring.stringify({
-        'Alexa IntentRequest' : JSON.stringify(intentValue)
-    })
-    var options = {
-      hostname : 'enigmatic-wildwood-66230.herokuapp.com',
-      path :'/fromAlexa',
-      method : 'POST',
-      headers : {
-          'Content-Type' : 'application/x-www-form-urlencoded',
-          'Content-Length': Buffer.byteLength(postData)
-      }
-    }
-    var endReq = (body) => {
-        req.end;
-        resolve(body);
-    }
-    var req = http.request(options, (res) => {
-      var body = '';
-      res.on('data', (d) => {
-          body += d;
-        });
+// let sendInstructions = (intentValue) => {
+//   return new Promise ((resolve, reject) => {
+//     let postData = querystring.stringify({
+//         'Alexa IntentRequest' : JSON.stringify(intentValue)
+//     })
+//     let options = {
+//       hostname : 'enigmatic-wildwood-66230.herokuapp.com',
+//       path :'/fromAlexa',
+//       method : 'POST',
+//       headers : {
+//           'Content-Type' : 'application/x-www-form-urlencoded',
+//           'Content-Length': Buffer.byteLength(postData)
+//       }
+//     }
+//     let endReq = (body) => {
+//         req.end;
+//         resolve(body);
+//     }
+//     let req = http.request(options, (res) => {
+//       let body = '';
+//       res.on('data', (d) => {
+//           body += d;
+//         });
 
-      res.on('error', (e) => {
-        reject(e);
-      });
+//       res.on('error', (e) => {
+//         reject(e);
+//       });
 
-      res.on('end', function(){
-      endReq(body);
-      });
-    });
-    req.write(postData);
-  })
-}
+//       res.on('end', function(){
+//       endReq(body);
+//       });
+//     });
+//     req.write(postData);
+//   })
+// }
 
-var getUserInfo = (token) => {
-  return new Promise ((resolve, reject) => {
-  var options = {
-  "method": "GET",
-  "hostname": "rakan.auth0.com",
-  "port": null,
-  "path": "/userinfo",
-  "headers": {
-    "authorization": `Bearer ${token}`,
-    "cache-control": "no-cache"
-    }
-  };
-  var body = '';
-  var req = https.request(options, res => {
-    res.on('data', d => {
-      body += d;
-    })
+// let getUserInfo = (token) => {
+//   return new Promise ((resolve, reject) => {
+//   let options = {
+//   "method": "GET",
+//   "hostname": "rakan.auth0.com",
+//   "port": null,
+//   "path": "/userinfo",
+//   "headers": {
+//     "authorization": `Bearer ${token}`,
+//     "cache-control": "no-cache"
+//     }
+//   };
+//   let body = '';
+//   let req = https.request(options, res => {
+//     res.on('data', d => {
+//       body += d;
+//     })
     
-    res.on('error', e => {
-      reject(e);
-    })
+//     res.on('error', e => {
+//       reject(e);
+//     })
     
-    res.on('end', ()=>{
-      resolve(body);
-    })
-  })
+//     res.on('end', ()=>{
+//       resolve(body);
+//     })
+//   })
   
-  req.on('error', e => {
-    reject(e);
-  })
+//   req.on('error', e => {
+//     reject(e);
+//   })
 
-  req.end();
-  })
-}
+//   req.end();
+//   })
+// }
