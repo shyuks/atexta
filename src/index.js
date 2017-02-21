@@ -315,73 +315,38 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICKMSG, {
 //     }
 // };
 
-let sendInstructions = function(intentValue) {
-    let postData = querystring.stringify({
-        'Alexa IntentRequest' : JSON.stringify(intentValue)
-    })
-    let options = {
-      hostname : 'enigmatic-wildwood-66230.herokuapp.com',
-      path :'/fromAlexa',
-      method : 'POST',
-      headers : {
-          'Content-Type' : 'application/x-www-form-urlencoded',
-          'Content-Length': Buffer.byteLength(postData)
-      }
-    }
-    let endReq = function(body) {
-        req.end;
-    }
-    let req = http.request(options, function(res) {
-      let body = '';
-      res.on('data', function(d) {
-          body += d;
-        });
+// let sendInstructions = function(intentValue) {
+//     let postData = querystring.stringify({
+//         'Alexa IntentRequest' : JSON.stringify(intentValue)
+//     })
+//     let options = {
+//       hostname : 'enigmatic-wildwood-66230.herokuapp.com',
+//       path :'/fromAlexa',
+//       method : 'POST',
+//       headers : {
+//           'Content-Type' : 'application/x-www-form-urlencoded',
+//           'Content-Length': Buffer.byteLength(postData)
+//       }
+//     }
+//     let endReq = function(body) {
+//         req.end;
+//     }
+//     let req = http.request(options, function(res) {
+//       let body = '';
+//       res.on('data', function(d) {
+//           body += d;
+//         });
 
-      res.on('error', function(e) {
-        console.log('error :', error);
-      });
+//       res.on('error', function(e) {
+//         console.log('error :', error);
+//       });
 
-      res.on('end', function(){
-      endReq(body);
-      });
-    });
-    req.write(postData);
-}
-
-let getUserInfo = (token) => {
-  return new Promise ((resolve, reject) => {
-  let options = {
-  "method": "GET",
-  "hostname": "rakan.auth0.com",
-  "port": null,
-  "path": "/userinfo",
-  "headers": {
-    "authorization": `Bearer ${token}`,
-    "cache-control": "no-cache"
-    }
-  };
-  let body = '';
-  let req = https.request(options, res => {
-    res.on('data', d => {
-      body += d;
-    })
-    
-    res.on('error', e => {
-      reject(e);
-    })
-    
-    res.on('end', ()=>{
-      resolve(body);
-    })
-  })
-  
-  req.on('error', e => {
-    reject(e);
-  })
-
-  req.end();
-  })
-}
+//       res.on('end', function(){
+//       endReq(body);
+//       });
+//     });
+//     req.write(postData);
+// }
 
 let validateUser = function() {
   let accessToken = this.event.session.user.accessToken;
