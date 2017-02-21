@@ -10,7 +10,7 @@
         ]
     },
     {
-      "intent" : "QuickMessageIntent",
+      "intent" : "QuickIntent",
       "slots" : [
         {
           "name" : "QuickMessage",
@@ -28,11 +28,11 @@
       ]
     },
     {
-      "intent" : "NewMessageIntent",
+      "intent" : "CustomIntent",
       "slots" : [
         {
-          "name" : "NewMessage",
-          "type" : "MESSAGE_MEDIUM"
+          "name" : "CustomMessage",
+          "type" : "AMAZON.LITERAL"
         }
       ]
     },
@@ -53,6 +53,18 @@
     },
     {
       "intent": "AMAZON.CancelIntent"
+    },
+    {
+      "intent": "AMAZON.StartOverIntent"
+    },
+    {
+      "intent": "AMAZON.YesIntent"
+    },
+    {
+      "intent": "AMAZON.NoIntent"
+    },
+    {
+      "intent": "AMAZON.RepeatIntent"
     }
   ]
 }
