@@ -1,11 +1,11 @@
 "use strict";
-var Alexa = require("alexa-sdk");
-var APP_ID = "amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f";
-var http = require ('http');
-var https = require ('https');
-var querystring = require('querystring');
+const Alexa = require("alexa-sdk");
+const APP_ID = "amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f";
+const http = require ('http');
+const https = require ('https');
+const querystring = require('querystring');
 
-var ATEXTA_STATES = {
+const ATEXTA_STATES = {
   VALIDATE: "_VALIDATEMODE",
   START: "_STARTMODE",
   QUICKMSG: "_QUICKMESSAGEMODE",
@@ -13,7 +13,7 @@ var ATEXTA_STATES = {
   HELP: "_HELPMODE"
 };
 
-var languageString = {
+const languageString = {
   "en-US": {
     "translation": {
       "WELCOME_MESSAGE": "Hello, how may I help you? ",
@@ -38,123 +38,104 @@ var languageString = {
 }
 
 exports.handler = function(event, context, callback) {
-  let alexa = Alexa.handler(event, context);
+  const alexa = Alexa.handler(event, context);
   alexa.appId = APP_ID;
   alexa.resources = languageString;
-  alexa.registerHandlers(newSessionHandlers, validateStateHandlers);
+  alexa.registerHandlers(newSessionHandlers, validateStateHandlers, startStateHandlers);
   alexa.execute();
 };
 
-let newSessionHandlers = {
+const newSessionHandlers = {
   "LaunchRequest": function() {;
     this.handler.state = ATEXTA_STATES.VALIDATE;
-    this.emitWithState("Validate");
+    this.emitWithState("ValidateUser");
+  },
+  "AMAZON.StartOverIntent": function() {
+    this.handler.state = ATEXTA_STATES.VALIDATE;
+    this.emitWithState("ValidateUser");
+  },
+  "AMAZON.HelpIntent": function() {
+    this.handler.state = ATEXTA_STATES.HELP;
+    this.emitWithState("helpTheUser");
+  },
+  "Unhandled": function() {
+    let speechOutput = this.t("START_UNHANDLED");
+    this.emit(":ask", speechOutput, speechOutput);
   }
-  // "AMAZON.StartOverIntent": () => {
-  //   this.handler.state = ATEXTA_STATES.VALIDATE;
-  //   this.emitWithState("ValidateUser");
-  // },
-  // "AMAZON.HelpIntent": () => {
-  //   this.handler.state = ATEXTA_STATES.HELP;
-  //   this.emitWithState("helpTheUser");
-  // },
-  // "Unhandled": () => {
-  //   let speechOutput = this.t("START_UNHANDLED");
-  //   this.emit(":ask", speechOutput, speechOutput);
-  // }
 };
 
-let validateStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.VALIDATE, {
+const validateStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.VALIDATE, {
   
-  "Validate": function() {
-    this.emit(":tell", "welcome");
-    // if (this.attributes["userEmail"]) {
-    //   this.handler.state = ATEXTA_STATES.START;
-    //   // update emission
-    //   this.emitWithState("Validated");
+  "ValidateUser": function() {
+    let accessToken = this.event.session.user.accessToken;             
     
-    // } else {
-    //   let accessToken = this.event.session.user.accessToken;             
-      
-    //   if (accessToken) {           
-    //     // let speechOutput = this.t("WELCOME_MESSAGE");
-    //     // let repromptText = this.t("WELCOME_REPROMPT");
-        
-    //     // getUserInfo(accessToken)
-    //     // .then(result => {
-    //     //   //save email to session for future calls?
-    //       this.attributes["userEmail"] = "testing"
-    //       // });
-
-    //       //if yes, send directly to messages with email
-
-    //       this.handler.state = ATEXTA_STATES.START;
-    //       this.emitWithState("NewlyValidated");
-    //     // })
-    //     // .catch(error => {
-    //     //   this.emit(":tell", "Error in getting user info. ");
-    //     // })
-
-      
-    //   } else {
-    //     let speechOutput = this.t("LINK_ACCOUNT");
-    //     this.emit(":tellWithLinkAccountCard", speechOutput)
-    //   }
-
-    // }
+    if (accessToken) {
+      // getUserInfo(accessToken)
+      // .then(result => {
+      //   this.attributes['userEmail'] = result;
+        this.handler.state = ATEXTA_STATES.START;
+        this.emitWithState("StartRequest");
+      // })
+      // .catch(error => {
+      //   this.emit(":tell", "Error in getting user info. ");
+      // })
+    } else {
+      let speechOutput = this.t("LINK_ACCOUNT");
+      this.emit(":tellWithLinkAccountCard", speechOutput)
+    }
   },
   
-    "SessionEndedRequest": function () {
+    "SessionEndedRequest": function() {
         console.log("Session ended in validate state: " + this.event.request.reason);
     }
 });
 
-// let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
-//   let req = this.event.request.intent.slots;
+const startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
   
-//   "Validated": () => {
-//     this.emit(":ask", "User already has an email validated. Now in start state. What would you like to do? ");
-//   }
+  "StartRequest": function() {
+    let speechOutput = this.t("WELCOME_MESSAGE");
+    let repromptText = this.t("WELCOME_REPROMPT");
+    this.emit(":ask", speechOutput, repromptText);
+  },
 
-//   "NewlyValidated": () => {
-//     this.emit(":ask", "User is now newly validated. What would you like to do? ");
-//   }
 
-//   "SecretIntent": () => {
-//     let secretMsg = req.SecretMessage.value;
-//     let speechOutput = "inside secret intent";
-//     let cardTitle = "Atexta";
-//     let cardContent = this.t("SECRET_CONFIRM", secretMsg);
-//     //check database for secret message, bring back medium and group
+  "SecretIntent": function() {
+    let secretMsg = this.event.request.intent.slots.SecretMessage.value;
+    let speechOutput = "inside secret intent";
+    let cardTitle = "Atexta";
+    let cardContent = this.t("SECRET_CONFIRM", secretMsg);
+    //check database for secret message, bring back medium and group
 
-//     //pending on medium, trigger one of the functionalities to the group
+    //pending on medium, trigger one of the functionalities to the group
     
 
 
-//     this.emit(":tellWithCard", speechOutput, cardTitle, cardContent)
+    this.emit(":tellWithCard", speechOutput, cardTitle, cardContent)
 
-//     //if can't find secret message
-    
-//     this.emit(":ask")
-//   }
+    //if can't find secret message
+    // this.emit(":ask")
+  },
   
-//   "QuickMessageIntent": () => {
-//     this.attributes["quickMsg"] = req.QuickMessage.value;             
+  "QuickMessageIntent": function() {
+    this.attributes["quickMsg"] = this.event.request.intent.slots.QuickMessage.value;             
 
-//     this.handler.state = ATEXTA_STATES.QUICKMSG;
-//     this.emitWithState("StartQuick", quickMsg);
-//   });
+    this.handler.state = ATEXTA_STATES.QUICKMSG;
+    this.emitWithState("StartQuick", quickMsg);
+  },
 
-//   "NewMessageIntent": function () {
-//     this.attributes["newMsg"] = req.NewMessage.value;    
+  "NewMessageIntent": function() {
+    this.attributes["newMsg"] = this.event.request.intent.slots.NewMessage.value;    
 
-//     this.handler.state = ATEXTA_STATES.NEWMSG
-//   });
+    this.handler.state = ATEXTA_STATES.NEWMSG
+  },
+  
+  "SessionEndedRequest": function() {
+    console.log("Session ended in start state: " + this.event.request.reason);
+  }
 
-// });
+});
 
 // let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICKMSG, {
-//   let req = this.event.request.intent.slots;
 
 //   "StartQuick": (quickMsg) => {
 //     //check database for msg and group
@@ -184,7 +165,7 @@ let validateStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.VALIDATE, {
 
 // Atexta.prototype = Object.create(Alexa.prototype);
 
-// Atexta.prototype.varructor = Atexta;
+// Atexta.prototype.letructor = Atexta;
 
 // Atexta.prototype.eventHandlers.onSessionStarted = function (sessionStartedRequest, session, response) {
 //   if(!session.user.accessToken) {
@@ -312,73 +293,70 @@ let validateStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.VALIDATE, {
 //     }
 // };
 
-// let sendInstructions = (intentValue) => {
-//   return new Promise ((resolve, reject) => {
-//     let postData = querystring.stringify({
-//         'Alexa IntentRequest' : JSON.stringify(intentValue)
-//     })
-//     let options = {
-//       hostname : 'enigmatic-wildwood-66230.herokuapp.com',
-//       path :'/fromAlexa',
-//       method : 'POST',
-//       headers : {
-//           'Content-Type' : 'application/x-www-form-urlencoded',
-//           'Content-Length': Buffer.byteLength(postData)
-//       }
-//     }
-//     let endReq = (body) => {
-//         req.end;
-//         resolve(body);
-//     }
-//     let req = http.request(options, (res) => {
-//       let body = '';
-//       res.on('data', (d) => {
-//           body += d;
-//         });
+let sendInstructions = function(intentValue) {
+    let postData = querystring.stringify({
+        'Alexa IntentRequest' : JSON.stringify(intentValue)
+    })
+    let options = {
+      hostname : 'enigmatic-wildwood-66230.herokuapp.com',
+      path :'/fromAlexa',
+      method : 'POST',
+      headers : {
+          'Content-Type' : 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(postData)
+      }
+    }
+    let endReq = function(body) {
+        req.end;
+    }
+    let req = http.request(options, function(res) {
+      let body = '';
+      res.on('data', function(d) {
+          body += d;
+        });
 
-//       res.on('error', (e) => {
-//         reject(e);
-//       });
+      res.on('error', function(e) {
+        console.log('error :', error);
+      });
 
-//       res.on('end', function(){
-//       endReq(body);
-//       });
-//     });
-//     req.write(postData);
-//   })
-// }
+      res.on('end', function(){
+      endReq(body);
+      });
+    });
+    req.write(postData);
+}
 
-// let getUserInfo = (token) => {
-//   return new Promise ((resolve, reject) => {
-//   let options = {
-//   "method": "GET",
-//   "hostname": "rakan.auth0.com",
-//   "port": null,
-//   "path": "/userinfo",
-//   "headers": {
-//     "authorization": `Bearer ${token}`,
-//     "cache-control": "no-cache"
-//     }
-//   };
-//   let body = '';
-//   let req = https.request(options, res => {
-//     res.on('data', d => {
-//       body += d;
-//     })
+let getUserInfo = (token) => {
+  return new Promise ((resolve, reject) => {
+  let options = {
+  "method": "GET",
+  "hostname": "rakan.auth0.com",
+  "port": null,
+  "path": "/userinfo",
+  "headers": {
+    "authorization": `Bearer ${token}`,
+    "cache-control": "no-cache"
+    }
+  };
+  let body = '';
+  let req = https.request(options, res => {
+    res.on('data', d => {
+      body += d;
+    })
     
-//     res.on('error', e => {
-//       reject(e);
-//     })
+    res.on('error', e => {
+      reject(e);
+    })
     
-//     res.on('end', ()=>{
-//       resolve(body);
-//     })
-//   })
+    res.on('end', ()=>{
+      resolve(body);
+    })
+  })
   
-//   req.on('error', e => {
-//     reject(e);
-//   })
+  req.on('error', e => {
+    reject(e);
+  })
 
-//   req.end();
-//   })
-// }
+  req.end();
+  })
+}

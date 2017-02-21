@@ -1,7 +1,13 @@
 {
   "intents" : [
     {
-      "intent" : "SecretIntent"
+      "intent" : "SecretIntent",
+      "slots" : [
+        {
+          "name" : "SecretMessage",
+          "type" : "SECRET_MESSAGE"
+        }
+        ]
     },
     {
       "intent" : "QuickMessageIntent",
