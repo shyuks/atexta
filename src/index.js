@@ -1,9 +1,7 @@
 "use strict";
 const Alexa = require("alexa-sdk");
 const APP_ID = "amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f";
-const http = require ('http');
-const https = require ('https');
-const querystring = require('querystring');
+const dbHandler = require('./db/controllers/db_controllers')
 
 const ATEXTA_STATES = {
   START: "_STARTMODE",
@@ -77,37 +75,45 @@ const newSessionHandlers = {
 const startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
   
   "StartRequest": function() {
-    let accessToken = this.event.session.user.accessToken;
-    validateUser(accessToken)
-    .then(token => {
+    let token = this.event.session.user.accessToken;
+    if (token) {
       let speechOutput = this.t("WELCOME_MESSAGE");
       let repromptText = this.t("WELCOME_REPROMPT");
       this.emit(":ask", speechOutput, repromptText);
-    })
-    .catch(reject => {
+    } else {
       let speechOutput = this.t("LINK_ACCOUNT");
       this.emit(":tellWithLinkAccountCard", speechOutput)
-    })
+    }
   },
   "SecretIntent": function() {
     this.attributes["secretMsg"] = this.event.request.intent.slots.SecretMessage.value;
     this.handler.state = ATEXTA_STATES.SECRET;
     this.emitWithState("SendSecretIntent");
   },
-  // "QuickMessageIntent": function() {
-  //   this.attributes["quickMsg"] = this.event.request.intent.slots.QuickMessage.value;             
-  //   this.handler.state = ATEXTA_STATES.QUICK;
-  //   this.emitWithState("StartQuick");
-  // },
-  // "CustomMessageIntent": function() {
-  //   this.attributes["customMsg"] = this.event.request.intent.slots.NewMessage.value;    
-  //   this.handler.state = ATEXTA_STATES.CUSTOM;
-  //   this.emitWithState("StartCustom");
-  // },
-  //Cancel Intent
+  "QuickMessageIntent": function() {
+    this.attributes["quickMsg"] = this.event.request.intent.slots.QuickMessage.value;             
+    this.handler.state = ATEXTA_STATES.QUICK;
+    this.emitWithState("StartQuick");
+  },
+  "CustomMessageIntent": function() {
+    this.attributes["customMsg"] = this.event.request.intent.slots.NewMessage.value;    
+    this.handler.state = ATEXTA_STATES.CUSTOM;
+    this.emitWithState("StartCustom");
+  },
+  "Amazon.CancelIntent": function() {
+    let speechOutput = this.t("END_MESSAGE");
+    this.emit(":tell", speechOutput);
+  },
+  "Amazon.StopIntent": function() {
+    let speechOutput = this.t("END_MESSAGE");
+    this.emit(":tell", speechOutput);
+  },
+  "Amazon.RepeatIntent": function() {
+    let speechOutput = this.t("WELCOME_MESSAGE");
+    let repromptText = this.t("WELCOME_REPROMPT");
+    this.emit(":ask", speechOutput, repromptText);
+  }
   //Help Intent
-  //Yes Intent
-  //Repeat Intent
   //No Intent
   //StartOver Intent
   "SessionEndedRequest": function() {
@@ -120,10 +126,15 @@ const startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
 let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
 
   "SendSecretIntent": function() {
+    let token = this.event.session.user.accessToken;
     let displayedMsg = this.attributes["secretMsg"];
     let speechOutput = "inside secret intent";
     let cardTitle = "Atexta";
     let cardContent = this.t("SECRET_CARD", displayedMsg);
+    dbHandler.getIntentInfo(token, "wake")
+    .then(result => {
+      this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
+    })
     //check database for secret message, bring back medium and group
     this.emit(":tellWithCard", speechOutput, cardTitle, cardContent)
     //pending on medium, trigger one of the functionalities to the group
@@ -181,13 +192,3 @@ let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
 
 //   //stop intent
 // });
-
-let validateUser = function(accessToken) {
-  return new Promise (function(resolve, reject) {
-    if (accessToken) {
-      resolve(accessToken);
-    } else {
-      reject();
-    }
-  })
-}
