@@ -43,38 +43,8 @@ exports.handler = function(event, context, callback) {
   alexa.execute();
 };
 
-const newSessionHandlers = {
+let newSessionHandlers = {
   "LaunchRequest": function() {;
-    this.handler.state = ATEXTA_STATES.START;
-    this.emitWithState("StartRequest");
-  },
-  "SecretIntent": function() {
-    this.attributes["secretMsg"] = this.event.request.intent.slots.SecretMessage.value;
-    this.handler.state = ATEXTA_STATES.SECRET;
-    this.emitWithState("SendSecretIntent");
-  },
-  // "QuickMessage": function() {
-  //   this.handler.state = ATEXTA_STATES.QUICK;
-  //   this.emitWithState("");
-  // },
-  // "NewMessage": function() {
-  //   this.handler.state = ATEXTA_STATES.VALIDATE;
-  //   this.emitWithState("ValidateUser");
-  // },
-  "AMAZON.HelpIntent": function() {
-    this.handler.state = ATEXTA_STATES.HELP;
-    this.emitWithState("helpTheUser");
-  },
-  "Unhandled": function() {
-    let speechOutput = this.t("START_UNHANDLED");
-    this.handler.state = ATEXTA_STATES.START
-    this.emit(":ask", speechOutput, speechOutput);
-  }
-};
-
-const startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
-  
-  "StartRequest": function() {
     let token = this.event.session.user.accessToken;
     if (token) {
       let speechOutput = this.t("WELCOME_MESSAGE");
@@ -88,72 +58,63 @@ const startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
   "SecretIntent": function() {
     this.attributes["secretMsg"] = this.event.request.intent.slots.SecretMessage.value;
     this.handler.state = ATEXTA_STATES.SECRET;
-    this.emitWithState("SendSecretIntent");
+    this.emitWithState("StartRequest");
   },
-  "QuickMessageIntent": function() {
-    this.attributes["quickMsg"] = this.event.request.intent.slots.QuickMessage.value;             
+  "QuickMessage": function() {
+    this.attributes["quickMsg"] = this.event.request.intent.slots.QuickMessage.value;
     this.handler.state = ATEXTA_STATES.QUICK;
-    this.emitWithState("StartQuick");
+    this.emitWithState("");
   },
   "CustomMessageIntent": function() {
     this.attributes["customMsg"] = this.event.request.intent.slots.NewMessage.value;    
     this.handler.state = ATEXTA_STATES.CUSTOM;
-    this.emitWithState("StartCustom");
+    this.emitWithState("");
   },
-  "Amazon.CancelIntent": function() {
-    let speechOutput = this.t("END_MESSAGE");
-    this.emit(":tell", speechOutput);
+  "AMAZON.HelpIntent": function() {
+    this.handler.state = ATEXTA_STATES.HELP;
+    this.emitWithState("helpTheUser");
   },
-  "Amazon.StopIntent": function() {
-    let speechOutput = this.t("END_MESSAGE");
-    this.emit(":tell", speechOutput);
-  },
-  "Amazon.RepeatIntent": function() {
-    let speechOutput = this.t("WELCOME_MESSAGE");
-    let repromptText = this.t("WELCOME_REPROMPT");
-    this.emit(":ask", speechOutput, repromptText);
+  "Unhandled": function() {
+    let speechOutput = this.t("START_UNHANDLED");
+    this.handler.state = ATEXTA_STATES.START
+    this.emit(":ask", speechOutput, speechOutput);
   }
-  //Help Intent
-  //No Intent
-  //StartOver Intent
-  "SessionEndedRequest": function() {
-    console.log("Session ended in start state: " + this.event.request.reason);
-  }
-
-});
-
+};
 
 let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
-
+  "StartRequest": function() {
+    let token = this.event.session.user.accessToken;
+    if (token) {
+      this.emit("SendSecretIntent");
+    } else {
+      let speechOutput = this.t("LINK_ACCOUNT");
+      this.emit(":tellWithLinkAccountCard", speechOutput)
+    }
+  },
   "SendSecretIntent": function() {
     let token = this.event.session.user.accessToken;
-    let displayedMsg = this.attributes["secretMsg"];
+    let secretMsg = this.attributes["secretMsg"];
     let speechOutput = "inside secret intent";
     let cardTitle = "Atexta";
-    let cardContent = this.t("SECRET_CARD", displayedMsg);
-    dbHandler.getIntentInfo(token, "wake")
-    .then(result => {
-      this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
-    })
+    let cardContent = this.t("SECRET_CARD", secretMsg);
+    // dbHandler.getIntentInfo(token, "wake")
+    // .then(result => {
+    this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
+    // })
     //check database for secret message, bring back medium and group
-    this.emit(":tellWithCard", speechOutput, cardTitle, cardContent)
     //pending on medium, trigger one of the functionalities to the group
     //if can't find secret message
     // let speechOutput = this.t("SECRET_REPEAT");
     // this.emit(":ask", speechOutput, speechOutput);
   },
-  "SecretIntent": function() {
-    this.attributes["secretMsg"] = this.event.request.intent.slots.SecretMessage.value;
-    this.emit("SendSecretIntent");
-  },
   "Amazon.RepeatIntent": function() {
     let speechOutput = this.t("SECRET_REPEAT")
     this.emit(":ask", speechOutput, speechOutput)
   },
-  // "Amazon.HelpIntent": function() {
-  //   this.handler.state = ATEXTA_STATES.HELP;
-  //   this.emitWithState("helpUser", this.attributes["secretMsg"]);
-  // },
+  "Amazon.HelpIntent": function() {
+    this.handler.state = ATEXTA_STATES.HELP;
+    this.emitWithState("helpUser", this.attributes["secretMsg"]);
+  },
   "Amazon.CancelIntent": function() {
     let speechOutput = this.t("END_MESSAGE");
     this.emit(":tell", speechOutput);
@@ -167,28 +128,28 @@ let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
   }
 });
 
-// let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICKMSG, {
+let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICKMSG, {
 
-//   "StartQuick": function(quickMsg) {
-//     //check database for msg and group
-//     //if no group, save msg to attributes and send to recipientintent
+  "StartQuick": function(quickMsg) {
+    //check database for msg and group
+    //if no group, save msg to attributes and send to recipientintent
 
-//     //if no msg, send error/reprompt
+    //if no msg, send error/reprompt
 
-//     //if msg and group exist? send confirmation(yes/no)
-//   }
+    //if msg and group exist? send confirmation(yes/no)
+  }
 
-//   //recipientIntent
-//     //check for group, find medium, send accordingly, tellwithcard
-//     //if no group, reprompt
+  //recipientIntent
+    //check for group, find medium, send accordingly, tellwithcard
+    //if no group, reprompt
 
-//   //yes intent
+  //yes intent
   
-//   //no intent
+  //no intent
 
-//   //help intent
+  //help intent
 
-//   //cancel intent
+  //cancel intent
 
-//   //stop intent
-// });
+  //stop intent
+});
