@@ -1,62 +1,165 @@
-var db = require('./db/config');
-// var Promise = require('bluebird');
-var Sequelize = require('sequelize');
-var moment = require('moment')().format('YYYY-MM-DD HH:mm:ss');
+const http = require ('http');
+const https = require ('https');
+const querystring = require('querystring');
+const twilio = require('../../apiComm/controllers/twilio_controllers');
+const mailGun = require('../../apiComm/controllers/email_controllers');
 
-db.sync();
-
-module.exports.GetIntentInfo = (userInfo, commandName) => {
+let sendInstructions = (intentValue) => {
   return new Promise ((resolve, reject) => {
-    db.query('select * from User where email = ?', {
-      replacements: [userInfo.email],
-      type: Sequelize.QueryTypes.SELECT
+    let postData = querystring.stringify({
+        'Alexa IntentRequest' : JSON.stringify(intentValue)
     })
-    .then(result => {
-      if (result.length === 0) {
-        db.query('insert into User (email, name, authString, createdAt, updatedAt) values (?, ?, ?, ?, ?)', {
-          replacments: [userInfo.email, userInfo.name, JSON.stringify(userInfo), moment(new Date()), moment(new Date())]
-          type: Sequelize.QueryTypes.INSERT
-        })
-        .then(createdUser => {
-          resolve({newUser: true})
-        })
-        .catch(err => {
-          reject(err);
-        })
-      } else {
-        db.query('select * from Command C join Message M on C.messageId = M.id where userId = ? and name = ?', {
-          replacements: [result[0].id, commandName],
-          type: Sequelize.QueryTypes.SELECT
-        })
-        .then(foundCommand => {
-          if (foundCommand.length === 0) {
-            resolve({
-              newUser: false,
-              command: false
-            })
-          } else if (foundCommand[0].groupId === null) {
-            resolve({
-              newUser: false,
-              command: true,
-              group: []
-            })
-          } else {
-            db.query('select R.* from Group G join GroupRecipients GR on G.id = GR.groupId join Recipient R on GR.recipientId = R.id where G.id = ?', {
-              replacements: [foundCommand[0].groupId],
-              type: Sequelize.QueryTypes.SELECT
-            })
-            .then(finalResult => {
-
-            })
-          }
-        })
+    let options = {
+      hostname : 'enigmatic-wildwood-66230.herokuapp.com',
+      path :'/fromAlexa',
+      method : 'POST',
+      headers : {
+          'Content-Type' : 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(postData)
       }
-    })
-  });
+    }
+    let endReq = (body) => {
+        req.end;
+        resolve(body);
+    }
+    let req = http.request(options, (res) => {
+      let body = '';
+      res.on('data', (d) => {
+          body += d;
+        });
+
+      res.on('error', (e) => {
+        reject(e);
+      });
+
+      res.on('end', function(){
+      endReq(body);
+      });
+    });
+    req.write(postData);
+  })
 }
 
-module.exports.GetGroupInfo = (groupName) => {
-  return new Promise ((resolve, reject) => {
+// module.exports.getUserInfo = (token) => {
+//   return new Promise ((resolve, reject) => {
+//   let options = {
+//   "method": "GET",
+//   "hostname": "rakan.auth0.com",
+//   "port": null,
+//   "path": "/userinfo",
+//   "headers": {
+//     "authorization": `Bearer ${token}`,
+//     "cache-control": "no-cache"
+//     }
+//   };
+//   let body = '';
+//   let req = https.request(options, res => {
+//       res.on('data', d => {
+//           body += d;
+//       })
+      
+//       res.on('error', e => {
+//           reject(e);
+//       })
+      
+//       res.on('end', ()=>{
+//           resolve(body);
+//       })
+//   })
   
-  });
+//   req.on('error', e => {
+//         reject(e);
+//   })
+  
+//   req.end();
+//   })
+// }
+
+module.exports.getIntentInfo = (inputToken, inputCommandName) => {
+  return new Promise ((resolve, reject) => {
+    let options = {
+      hostname : 'enigmatic-wildwood-66230.herokuapp.com',
+      path :'/getIntentInfo',
+      method : 'GET',
+      headers : {
+        token : inputToken,
+        commandname : inputCommandName
+      }
+    }
+    let endReq = (body) => {
+        req.end;
+        resolve(JSON.parse(body));
+    }
+    let req = http.request(options, (res) => {
+      let body = '';
+      res.on('data', (d) => {
+          body += d;
+        });
+
+      res.on('error', (e) => {
+        reject(e);
+      });
+
+      res.on('end', function(){
+      endReq(body);
+      });
+    });
+  })
 }
+
+module.exports.getGroupInfo = (inputToken, commandName) => {
+  return new Promise ((resolve, reject) => {
+    let options = {
+      hostname : 'enigmatic-wildwood-66230.herokuapp.com',
+      path :`/fromAlexa/${token}/${commandName}`,
+      method : 'GET'
+    }
+    let endReq = (body) => {
+        req.end;
+        resolve(JSON.parse(body));
+    }
+    let req = http.request(options, (res) => {
+      let body = '';
+      res.on('data', (d) => {
+          body += d;
+        });
+
+      res.on('error', (e) => {
+        reject(e);
+      });
+
+      res.on('end', function(){
+      endReq(body);
+      });
+    });
+  })
+}
+
+let GetGroupInfo = (userEmail, groupName, message) => {
+ return new Promise ((resolve, reject) => {
+  db.query('select R.name, R.contactInfo, R.mediumType from Users U join Groups G on G.userId = U.id join GroupRecipients GR on GR.groupId = G.id join Recipients R on GR.recipientId = R.id where U.email = ? and G.name = ?',
+  {replacements : [userEmail, groupName], type : Sequelize.QueryTypes.SELECT})
+  .then(groupInfo => {
+       console.log('groupInfo :', JSON.parse(JSON.stringify(groupInfo)))
+    if (groupInfo.length === 0) {
+      resolve({group : false})
+    } else {
+      if (groupInfo[0].mediumType === 'T') {
+     
+        groupInfo.forEach(recipient => {
+          twilio.sendText(recipient.contactInfo, recipient.name);
+        })
+        db.close();
+        resolve({info: 'Text Messages Sent'});
+      } else if (groupInfo[0].mediumType === 'E') {
+        groupInfo.forEach(recipient => {
+          mailGun.sendEmail(recipient.contactInfo, message)
+        })
+        db.close();
+        resolve({info:  'Emails Sent'})
+      }
+    }
+  })
+ });
+}
+module.exports.GetGroupInfo = GetGroupInfo;
