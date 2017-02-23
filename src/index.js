@@ -6,6 +6,7 @@ const text = require('./apiComm/controllers/twilio_controllers');
 const email = require('./apiComm/controllers/email_controllers');
 const Sequelize = require("sequelize");
 const db = new Sequelize('mysql://admin:IRVRJIXSFGEBUQOI@aws-us-east-1-portal.25.dblayer.com:17284/compose');
+const dbControllers = require('./db/controllers/db_controllers')
 
 const ATEXTA_STATES = {
   START: "_STARTMODE",
@@ -59,13 +60,25 @@ let newSessionHandlers = {
   "LaunchRequest": function() {;
     this.attributes["token"] = this.event.session.user.accessToken;
     if (this.attributes["token"]) {
-      db.sync()
-      .then(synced => {
-        db.query("SELECT * from Users", {
-          type: Sequelize.QueryTypes.SELECT
-        })
-        .then(results => {
-          this.emit(":tell", results[0].name);
+
+      dbControllers.getUserInfo(this.event.session.user.accessToken)
+      .then(userProfile => {
+        this.attributes["userEmail"] = userProfile.email;
+        db.sync()
+        .then(synced => {
+          dbControllers.getIntentInfo(userProfile, "wake")
+          .then(intentResults => {
+            if (intentResults.newUser) {
+              // new user created
+            } else if (!intentResults.command) {
+              // found user but not the command
+            } else if (!intentResults.group) {
+              this.attributes["messageContent"] = intentResults.data;
+
+            } else if (intentResults.group) {
+              this.emit(":tell", "message sent");
+            } 
+          })
         })
       })
       .catch(error => {
