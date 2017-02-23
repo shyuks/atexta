@@ -68,47 +68,35 @@ let newSessionHandlers = {
   "LaunchRequest": function() {;
     this.attributes["token"] = this.event.session.user.accessToken;
     if (this.attributes["token"]) {
-      db.sync()
-      .then(results => {
-        db.query("SELECT * from Users", {
-          type: Sequelize.QueryTypes.SELECT
-        })
-        .then(users => {
-          this.emit(":tell", users[0].name)
-        })
+      utils.getUserInfo(this.attributes["token"])
+      .then(userProfile => {
+        this.attributes["userEmail"] = userProfile.email;
+        // db.sync()
+        // .then(synced => {
+          getIntentInfo(userProfile, "meeting reminder")
+          .then(intentResults => {
+            if (intentResults.newUser) {
+              // new user created
+            } else if (!intentResults.command) {
+              // found user but not the command
+            } else if (!intentResults.group) {
+              this.attributes["messageContent"] = intentResults.data;
+            } else {
+              handleCommand(intentResults.data, intentResults.data[0].text)
+              this.emit(":tell", "message sent");
+            } 
+          })
+        // })
       })
       .catch(error => {
-        this.emit(":tell", "you fucked up");
-      })
-    //   dbControllers.getUserInfo(this.attributes["token"])
-    //   .then(userProfile => {
-    //     this.attributes["userEmail"] = userProfile.email;
-    //     dbControllers.getIntentInfo(userProfile, "wake")
-    //     .then(intentResults => {
-    //       if (intentResults.newUser) {
-    //         // new user created
-    //       } else if (!intentResults.command) {
-    //         // found user but not the command
-    //       } else if (!intentResults.group) {
-    //         this.attributes["messageContent"] = intentResults.data;
-
-    //       } else {
-    //         this.emit(":tell", "message sent");
-    //       } 
-    //     })
-    //     .catch(er => {
-    //       this.emit(":tell", "error in getting intent info");
-    //     })
-    //   })
-    //   .catch(error => {
-    //     this.emit(":tell", "error in getting user profile");
-    //   });
+        this.emit(":tell", "error in getting user profile");
+      });
     //   // let speechOutput = this.t("LAUNCH_MESSAGE");
     //   // let repromptText = this.t("LAUNCH_REPROMPT");
     //   // this.emit(":ask", speechOutput, repromptText);
-    // } else {
-    //   let speechOutput = this.t("LINK_ACCOUNT");
-    //   this.emit(":tellWithLinkAccountCard", speechOutput)
+    } else {
+      let speechOutput = this.t("LINK_ACCOUNT");
+      this.emit(":tellWithLinkAccountCard", speechOutput)
     }
   },
   // "QuickIntent": function() {
@@ -294,56 +282,58 @@ let handleCommand = (groupInfo, message) => {
 
 let getIntentInfo = (userInfo, commandName) => {
   return new Promise ((resolve, reject) => {
-  db.sync()
-  .then(synced => {
-    db.query('select * from Users where email = ?', {
-      replacements: [userInfo.email],
-      type: Sequelize.QueryTypes.SELECT
+    db.sync()
+    .then(synced => {
+      db.query('select * from Users where email = ?', {
+        replacements: [userInfo.email],
+        type: Sequelize.QueryTypes.SELECT
+      })
+      .then(result => {
+        if (result.length === 0) {
+          let currDate = moment().format();
+          currDate = currDate.replace('T', ' ').substr(0, 19)
+          db.query(`insert into Users (email, name, createdAt, updatedAt) value ("${userInfo.email}", "${userInfo.name}", "${currDate}", "${currDate}")`, {
+            type: Sequelize.QueryTypes.INSERT
+          })
+          .then(createdUser => {
+            resolve({newUser: true})
+          })
+          .catch(err => {
+            reject(err);
+          })
+        } else {
+          db.query('select C.name as commandName, G.name as groupName, M.text, R.name as recipientName, R.mediumType, R.contactInfo from Commands C join Messages M on C.messageId = M.id left outer join Groups G on G.id = C.groupId left outer join GroupRecipients GR on GR.groupId = C.groupId left outer join Recipients R on R.id = GR.recipientId where C.userId = ? and UPPER(C.name) = UPPER(?)', {
+            replacements: [result[0].id, commandName],
+            type: Sequelize.QueryTypes.SELECT
+          })
+          .then(foundCommand => {
+            if (foundCommand.length === 0) {
+              resolve({
+                newUser: false,
+                command: false
+              })
+            } else if (foundCommand[0].groupId === null) {
+              resolve({
+                newUser: false,
+                command: true,
+                group: false,
+                data: foundCommand[0].text
+              })
+            } else {
+              resolve({
+                newUser: false,
+                command: true,
+                group: true,
+                data: foundCommand
+              })
+            }
+          })
+        }
+      })
+      .catch(error => {
+        reject(error);
+      })
     })
-    .then(result => {
-      if (result.length === 0) {
-        let currDate = moment().format();
-        currDate = currDate.replace('T', ' ').substr(0, 19)
-        db.query(`insert into Users (email, name, createdAt, updatedAt) value ("${userInfo.email}", "${userInfo.name}", "${currDate}", "${currDate}")`, {
-          type: Sequelize.QueryTypes.INSERT
-        })
-        .then(createdUser => {
-          resolve({newUser: true})
-        })
-        .catch(err => {
-          reject(err);
-        })
-      } else {
-        db.query('select C.name as commandName, G.name as groupName, M.text, R.name as recipientName, R.mediumType, R.contactInfo from Commands C join Messages M on C.messageId = M.id left outer join Groups G on G.id = C.groupId left outer join GroupRecipients GR on GR.groupId = C.groupId left outer join Recipients R on R.id = GR.recipientId where C.userId = ? and UPPER(C.name) = UPPER(?)', {
-          replacements: [result[0].id, commandName],
-          type: Sequelize.QueryTypes.SELECT
-        })
-        .then(foundCommand => {
-          if (foundCommand.length === 0) {
-            resolve({
-              newUser: false,
-              command: false
-            })
-          } else if (foundCommand[0].groupId === null) {
-            resolve({
-              newUser: false,
-              command: true,
-              group: false,
-              data: foundCommand[0].text
-            })
-          } else {
-            handleCommand(foundCommand, foundCommand[0].text);
-            resolve({
-              newUser: false,
-              command: true,
-              group: true,
-              data: foundCommand
-            })
-          }
-        })
-      }
-    })
-  });
   })
 }
 
