@@ -4,78 +4,7 @@ const querystring = require('querystring');
 const twilio = require('../../apiComm/controllers/twilio_controllers');
 const mailGun = require('../../apiComm/controllers/email_controllers');
 
-let sendInstructions = (intentValue) => {
-  return new Promise ((resolve, reject) => {
-    let postData = querystring.stringify({
-        'Alexa IntentRequest' : JSON.stringify(intentValue)
-    })
-    let options = {
-      hostname : 'enigmatic-wildwood-66230.herokuapp.com',
-      path :'/fromAlexa',
-      method : 'POST',
-      headers : {
-          'Content-Type' : 'application/x-www-form-urlencoded',
-          'Content-Length': Buffer.byteLength(postData)
-      }
-    }
-    let endReq = (body) => {
-        req.end;
-        resolve(body);
-    }
-    let req = http.request(options, (res) => {
-      let body = '';
-      res.on('data', (d) => {
-          body += d;
-        });
-
-      res.on('error', (e) => {
-        reject(e);
-      });
-
-      res.on('end', function(){
-      endReq(body);
-      });
-    });
-    req.write(postData);
-  })
-}
-
-// module.exports.getUserInfo = (token) => {
-//   return new Promise ((resolve, reject) => {
-//   let options = {
-//   "method": "GET",
-//   "hostname": "rakan.auth0.com",
-//   "port": null,
-//   "path": "/userinfo",
-//   "headers": {
-//     "authorization": `Bearer ${token}`,
-//     "cache-control": "no-cache"
-//     }
-//   };
-//   let body = '';
-//   let req = https.request(options, res => {
-//       res.on('data', d => {
-//           body += d;
-//       })
-      
-//       res.on('error', e => {
-//           reject(e);
-//       })
-      
-//       res.on('end', ()=>{
-//           resolve(body);
-//       })
-//   })
-  
-//   req.on('error', e => {
-//         reject(e);
-//   })
-  
-//   req.end();
-//   })
-// }
-
-module.exports.getIntentInfo = (inputToken, inputCommandName) => {
+module.exports.getIntentInfo = (inputToken, inputCommand) => {
   return new Promise ((resolve, reject) => {
     let options = {
       hostname : 'enigmatic-wildwood-66230.herokuapp.com',
@@ -83,7 +12,7 @@ module.exports.getIntentInfo = (inputToken, inputCommandName) => {
       method : 'GET',
       headers : {
         token : inputToken,
-        commandname : inputCommandName
+        commandname : inputCommand
       }
     }
     let endReq = (body) => {
@@ -107,16 +36,21 @@ module.exports.getIntentInfo = (inputToken, inputCommandName) => {
   })
 }
 
-module.exports.getGroupInfo = (inputToken, commandName) => {
+module.exports.getGroupInfo = (inputEmail, inputGroup) => {
   return new Promise ((resolve, reject) => {
     let options = {
       hostname : 'enigmatic-wildwood-66230.herokuapp.com',
-      path :`/fromAlexa/${token}/${commandName}`,
-      method : 'GET'
+      path :'/getGroupInfo',
+      method : 'GET',
+      headers : {
+        userEmail : inputEmail,
+        groupName : inputGroup
+      }
     }
     let endReq = (body) => {
-        req.end;
-        resolve(JSON.parse(body));
+      
+      req.end;
+      resolve(JSON.parse(body));
     }
     let req = http.request(options, (res) => {
       let body = '';
