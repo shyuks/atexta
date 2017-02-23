@@ -1,11 +1,20 @@
 "use strict";
-const Alexa = require("alexa-sdk");
-const APP_ID = "amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f";
-const dbHandler = require('./db/controllers/db_controllers');
-const text = require('./apiComm/controllers/twilio_controllers');
-const email = require('./apiComm/controllers/email_controllers');
-const Sequelize = require("sequelize");
-const db = new Sequelize('mysql://admin:IRVRJIXSFGEBUQOI@aws-us-east-1-portal.25.dblayer.com:17284/compose');
+const Alexa = require('alexa-sdk');
+const APP_ID = 'amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f';
+const utils = require('./utils');
+
+const Sequelize = require('sequelize');
+const cred = require('./keys');
+const db = new Sequelize('atexta', cred.username, cred.password, {
+ host: 'atexta.c1qn5i5sh8u5.us-east-1.rds.amazonaws.com',
+ port : 3306,
+ dialect: 'mysql',
+ pool: {
+   max: 5,
+   min: 0,
+   idle: 10000
+ }
+});
 
 const ATEXTA_STATES = {
   START: "_STARTMODE",
@@ -60,23 +69,46 @@ let newSessionHandlers = {
     this.attributes["token"] = this.event.session.user.accessToken;
     if (this.attributes["token"]) {
       db.sync()
-      .then(synced => {
+      .then(results => {
         db.query("SELECT * from Users", {
           type: Sequelize.QueryTypes.SELECT
         })
-        .then(results => {
-          this.emit(":tell", results[0].name);
+        .then(users => {
+          this.emit(":tell", users[0].name)
         })
       })
       .catch(error => {
-        this.emit(":tell", "error in syncing database");
-      });
-      // let speechOutput = this.t("WELCOME_MESSAGE");
-      // let repromptText = this.t("WELCOME_REPROMPT");
-      // this.emit(":ask", speechOutput, repromptText);
-    } else {
-      let speechOutput = this.t("LINK_ACCOUNT");
-      this.emit(":tellWithLinkAccountCard", speechOutput)
+        this.emit(":tell", "you fucked up");
+      })
+    //   dbControllers.getUserInfo(this.attributes["token"])
+    //   .then(userProfile => {
+    //     this.attributes["userEmail"] = userProfile.email;
+    //     dbControllers.getIntentInfo(userProfile, "wake")
+    //     .then(intentResults => {
+    //       if (intentResults.newUser) {
+    //         // new user created
+    //       } else if (!intentResults.command) {
+    //         // found user but not the command
+    //       } else if (!intentResults.group) {
+    //         this.attributes["messageContent"] = intentResults.data;
+
+    //       } else {
+    //         this.emit(":tell", "message sent");
+    //       } 
+    //     })
+    //     .catch(er => {
+    //       this.emit(":tell", "error in getting intent info");
+    //     })
+    //   })
+    //   .catch(error => {
+    //     this.emit(":tell", "error in getting user profile");
+    //   });
+    //   // let speechOutput = this.t("LAUNCH_MESSAGE");
+    //   // let repromptText = this.t("LAUNCH_REPROMPT");
+    //   // this.emit(":ask", speechOutput, repromptText);
+    // } else {
+    //   let speechOutput = this.t("LINK_ACCOUNT");
+    //   this.emit(":tellWithLinkAccountCard", speechOutput)
     }
   },
   // "QuickIntent": function() {
@@ -245,3 +277,96 @@ let newSessionHandlers = {
 //     console.log("Session ended in secret state: " + this.event.request.reason);
 //   }
 // });
+
+let handleCommand = (groupInfo, message) => {
+  if (groupInfo[0].mediumType === 'T') {
+    groupInfo.forEach(recipient => {
+      utils.sendText(recipient.contactInfo, message);
+      // console.log(JSON.stringify(recipient))
+    })
+  } else if (groupInfo[0].mediumType === 'E') {
+    groupInfo.forEach(recipient => {
+      // console.log(JSON.stringify(recipient))
+      utils.sendEmail(recipient.contactInfo, message);
+    })
+  }
+}
+
+let getIntentInfo = (userInfo, commandName) => {
+  return new Promise ((resolve, reject) => {
+  db.sync()
+  .then(synced => {
+    db.query('select * from Users where email = ?', {
+      replacements: [userInfo.email],
+      type: Sequelize.QueryTypes.SELECT
+    })
+    .then(result => {
+      if (result.length === 0) {
+        let currDate = moment().format();
+        currDate = currDate.replace('T', ' ').substr(0, 19)
+        db.query(`insert into Users (email, name, createdAt, updatedAt) value ("${userInfo.email}", "${userInfo.name}", "${currDate}", "${currDate}")`, {
+          type: Sequelize.QueryTypes.INSERT
+        })
+        .then(createdUser => {
+          resolve({newUser: true})
+        })
+        .catch(err => {
+          reject(err);
+        })
+      } else {
+        db.query('select C.name as commandName, G.name as groupName, M.text, R.name as recipientName, R.mediumType, R.contactInfo from Commands C join Messages M on C.messageId = M.id left outer join Groups G on G.id = C.groupId left outer join GroupRecipients GR on GR.groupId = C.groupId left outer join Recipients R on R.id = GR.recipientId where C.userId = ? and UPPER(C.name) = UPPER(?)', {
+          replacements: [result[0].id, commandName],
+          type: Sequelize.QueryTypes.SELECT
+        })
+        .then(foundCommand => {
+          if (foundCommand.length === 0) {
+            resolve({
+              newUser: false,
+              command: false
+            })
+          } else if (foundCommand[0].groupId === null) {
+            resolve({
+              newUser: false,
+              command: true,
+              group: false,
+              data: foundCommand[0].text
+            })
+          } else {
+            handleCommand(foundCommand, foundCommand[0].text);
+            resolve({
+              newUser: false,
+              command: true,
+              group: true,
+              data: foundCommand
+            })
+          }
+        })
+      }
+    })
+  });
+  })
+}
+
+let GetGroupInfo = (userEmail, groupName, message) => {
+  return new Promise ((resolve, reject) => {
+  db.query('select R.name, R.contactInfo, R.mediumType from Users U join Groups G on G.userId = U.id join GroupRecipients GR on GR.groupId = G.id join Recipients R on GR.recipientId = R.id where U.email = ? and G.name = ?',
+  {replacements: [userEmail, groupName], type: Sequelize.QueryTypes.SELECT})
+  .then(groupInfo => {
+    if (groupInfo.length === 0) {
+      resolve({group : false})
+    } else {
+      if (groupInfo[0].mediumType === 'T') {
+        groupInfo.forEach(recipient => {
+          utils.sendText(recipient.contactInfo, recipient.name);
+        })
+        resolve({info: 'Text Messages Sent'});
+      } else if (groupInfo[0].mediumType === 'E') {
+        groupInfo.forEach(recipient => {
+          utils.sendEmail(recipient.contactInfo, message)
+        })
+        resolve({info: 'Emails Sent'})
+      }
+    }
+  })
+ });
+}
