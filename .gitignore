@@ -29,6 +29,8 @@ build/Release
 # Dependency directories
 node_modules
 jspm_packages
+src/db/keys.js
+src/src.zip
 
 # Optional npm cache directory
 .npm
