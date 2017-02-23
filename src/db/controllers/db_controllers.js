@@ -1,6 +1,7 @@
+'use strict'
 const http = require ('http');
 const https = require ('https');
-const querystring = require('querystring');
+const db = require('../config');
 const twilio = require('../../apiComm/controllers/twilio_controllers');
 const mailGun = require('../../apiComm/controllers/email_controllers');
 
