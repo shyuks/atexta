@@ -28,9 +28,7 @@ const languageString = {
       "NEW_USERCARD": "Please download the a texta app or visit www.my a texta.com to customize your messages.",
       "QUICK_NOCOMMAND": "I couldn\'t find that pre-saved message. What would you like to send? ",
       "QUICK_REPEAT": "What quick message would you like to send? ",
-      "QUICK_ERROR": "I\'m having issues accessing your list of messages at the moment. Please try again later. ",
-      "CUSTOM_ERROR": "I\'ve run into a problem sending that message. Let\'s try again. " + 
-        "What would you like to send? ",
+      "CONNECT_ERROR": "I\'m having issues accessing your list of messages at the moment. Please try again later. ",
       "CUSTOM_REPEAT": "What custom message would you like to send? ",
       "VERIFY_MESSAGE": "Command has been verified and is ready for future use. ",
       "VERIFY_MESSAGECARD": "The command, %s, has been verified and is ready for future use.",
@@ -40,9 +38,10 @@ const languageString = {
       "CONFIRM_SENTCARD": "Quick message has been sent to %s.",
       "SECRET_CARD": "%s has been sent.",
       "SECRET_ERROR": "I couldn\'t find that command. Please repeat your command. ",
-      "SECRET_REPEAT": "Sorry, I didn\'t get that. Please repeat your command. ",
-      "HELP_MESSAGE": "You can send a pre-saved quick message by saying, send quick message. " +
-        "Or send a new custom message by saying, send custom message.",
+      "SECRET_REPEAT": "What would you like to do? ",
+      "HELP_SECRET": "Say one of your pre-saved commands to trigger an action. ",
+      "HELP_MESSAGE": "You can send a pre-saved quick message by saying, send quick message, followed by what you\'d like to send. " +
+        "Or send a new custom message by saying, send custom message, followed by your message.",
       "END_MESSAGE": "Goodbye.",
       "START_UNHANDLED": "Sorry, I didn\'t get that. What would you like to do? ",
       "QUICK_UNHANDLED": "To send a quick message, say, send quick message, before your message. ",
@@ -87,9 +86,8 @@ let newSessionHandlers = {
     this.emitWithState("SendSecretIntent");
   },
   "AMAZON.HelpIntent": function() {
-    this.emit(":tell", "in initial help intent");
-    // this.handler.state = ATEXTA_STATES.HELP;
-    // this.emitWithState("helpUser", false);
+    this.handler.state = ATEXTA_STATES.HELP;
+    this.emitWithState("helpUser", false);
   },
   "Unhandled": function() {
     let speechOutput = this.t("START_UNHANDLED");
@@ -146,7 +144,6 @@ let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
   },
   "Unhandled": function() {
     let speechOutput = this.t("START_UNHANDLED");
-    this.handler.state = ATEXTA_STATES.START
     this.emit(":ask", speechOutput, speechOutput);
   },
   "SessionEndedRequest": function() {
@@ -169,6 +166,7 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
         } else if (results.NoCommand) {
           let speechOutput = this.t("QUICK_NOCOMMAND");
           let repromptText = this.t("QUICK_REPEAT");
+          this.attributes["repeatPrompt"] = speechOutput;
           this.emit(":ask", speechOutput, repromptText);
         } else if (results.NotVerified) {
           let speechOutput = this.t("VERIFY_MESSAGE");
@@ -179,6 +177,7 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
           this.attributes["email"] = results.email;
           this.attributes["data"] = results.data;
           let speechOutput = this.t("SELECT_GROUP");
+          this.attributes["repeatPrompt"] = speechOutput;
           this.emit(":ask", speechOutput, speechOutput);
         } else {
           let speechOutput = this.t("CONFIRM_SENT");
@@ -188,9 +187,9 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
         }
       })
       .catch(error => {
-        let speechOutput = this.t("QUICK_ERROR");
+        let speechOutput = this.t("CONNECT_ERROR");
         this.handler.state = ATEXTA_STATES.QUICK;
-        this.emit(":ask", speechOutput, speechOutput);
+        this.emit(":tell", speechOutput);
       })
     } else {
       let speechOutput = this.t("LINK_ACCOUNT");
@@ -204,7 +203,6 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
   "RecipientIntent": function() {
     let useremail = this.attributes["email"];
     let group = this.event.request.intent.slots.Group.value;
-    this.attributes["group"] = group;
     let messageid = this.attributes["data"].MessageId;
     let commandid = this.attributes["data"].CommandId;
     let message = this.attributes["data"].text;
@@ -217,12 +215,13 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
         this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
       } else {
         let speechOutput = this.t("GROUP_ERROR");
+        this.attributes["repeatPrompt"] = speechOutput;
         this.emit(":ask", speechOutput, speechOutput);
       }
     })
   },
   "AMAZON.RepeatIntent": function() {
-    let speechOutput = this.t("QUICK_REPEAT")
+    let speechOutput = this.attributes["repeatPrompt"] || this.t("QUICK_REPEAT");
     this.emit(":ask", speechOutput, speechOutput)
   },
   "AMAZON.HelpIntent": function() {
@@ -251,6 +250,7 @@ let customMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.CUSTOM, {
     let token = this.event.session.user.accessToken;
     if (token) {
       let speechOutput = this.t("SELECT_GROUP");
+      this.attributes["repeatPrompt"] = speechOutput;
       this.emit(":ask", speechOutput, speechOutput);
     } else {
       let speechOutput = this.t("LINK_ACCOUNT");
@@ -279,16 +279,17 @@ let customMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.CUSTOM, {
         this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
       } else {
         let speechOutput = this.t("GROUP_ERROR");
+        this.attributes["repeatPrompt"] = speechOutput;
         this.emit(":ask", speechOutput, speechOutput);
       }
     })
     .catch(error => {
-      let speechOutput = this.t("CUSTOM_ERROR");
-      this.emit(":ask", speechOutput);
+      let speechOutput = this.t("CONNECT_ERROR");
+      this.emit(":tell", speechOutput);
     })
   },
   "AMAZON.RepeatIntent": function() {
-    let speechOutput = this.t("CUSTOM_REPEAT");
+    let speechOutput = this.attributes["repeatPrompt"] || this.t("CUSTOM_REPEAT");
     this.emit(":ask", speechOutput, speechOutput);
   },
   "AMAZON.HelpIntent": function() {
@@ -300,7 +301,8 @@ let customMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.CUSTOM, {
     this.emit(":tell", speechOutput);
   },
   "AMAZON.CancelIntent": function() {
-    this.emit("StopIntent");
+    let speechOutput = this.t("END_MESSAGE");
+    this.emit(":tell", speechOutput);
   },
   "Unhandled": function() {
     let speechOutput = this.t("CUSTOM_UNHANDLED");
@@ -325,11 +327,12 @@ let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
             this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
           } else if (results.NoCommand) {
             let speechOutput = this.t("SECRET_ERROR");
+            this.attributes["repeatPrompt"] = speechOutput;
             this.emit(":ask", speechOutput, speechOutput);
           } else if (results.NotVerified) {
             let speechOutput = this.t("VERIFY_MESSAGE");
             let cardTitle = "Atexta";
-            let cardContent = this.t("VERIFY_MESSAGECARD", quickMsg);
+            let cardContent = this.t("VERIFY_MESSAGECARD", secretMsg);
             this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
           } else {
             let secretMsg = this.attributes["secretMsg"];
@@ -366,6 +369,46 @@ let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
   },
   "SessionEndedRequest": function() {
     console.log("Session ended in secret state: " + this.event.request.reason);
+  }
+});
+
+let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
+  "helpUser": function(secret) {
+    let speechOutput = secret ? this.t("HELP_SECRET") : this.t("HELP_MESSAGE");
+    this.emit(":ask", speechOutput, speechOutput);
+  },
+  "QuickIntent": function() {
+    this.attributes["quickMsg"] = this.event.request.intent.slots.QuickMessage.value;
+    this.handler.state = ATEXTA_STATES.QUICK;
+    this.emitWithState("SendQuickIntent");
+  },
+  "CustomIntent": function() {
+    this.attributes["customMsg"] = this.event.request.intent.slots.CustomMessage.value;    
+    this.handler.state = ATEXTA_STATES.CUSTOM;
+    this.emitWithState("SendCustomIntent");
+  },
+  "SecretIntent": function() {
+    this.attributes["secretMsg"] = this.event.request.intent.slots.SecretMessage.value;
+    this.handler.state = ATEXTA_STATES.SECRET;
+    this.emitWithState("SendSecretIntent");
+  },
+  "AMAZON.RepeatIntent": function() {
+    let speechOutput = this.t("SECRET_REPEAT")
+    this.emit(":ask", speechOutput, speechOutput)
+  },
+  "AMAZON.HelpIntent": function() {
+    this.emitWithState("helpUser", true);
+  },
+  "AMAZON.StopIntent": function() {
+    let speechOutput = this.t("END_MESSAGE");
+    this.emit(":tell", speechOutput);
+  },
+  "AMAZON.CancelIntent": function() {
+    let speechOutput = this.t("END_MESSAGE");
+    this.emit(":tell", speechOutput);
+  },
+  "SessionEndedRequest": function() {
+    console.log("Session ended in help state: " + this.event.request.reason);
   }
 });
 
