@@ -37,15 +37,6 @@
       ]
     },
     {
-      "intent" : "MessageInputIntent",
-      "slots" : [
-        {
-          "name" : "MessageInput",
-          "type" : "AMAZON.LITERAL"
-        }
-      ]
-    },
-    {
       "intent": "AMAZON.HelpIntent"
     },
     {
