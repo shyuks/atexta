@@ -30,6 +30,7 @@ const languageString = {
       "SELECT_GROUP": "Who would you like to send this to? ",
       "GROUP_ERROR": "Could not find that group. Please say who you would like to send this to. ",
       "CONFIRM_SENT": "Message has been sent",
+      "CONFIRM_QUICKCARD": "Quick message, %s, has been sent.",
       "CONFIRM_CARDMSG": "'%s' has been sent ",
       "CONFIRM_RECIPIENT": "to %s",
       "SECRET_CARD": "'%s' has been sent. ",
@@ -176,10 +177,9 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
           this.attributes["repeatPrompt"] = speechOutput;
           this.emit(":ask", speechOutput, speechOutput);
         } else {
-          let group = results.group;
           let speechOutput = this.t("CONFIRM_SENT");
           let cardTitle = "Atexta";
-          let cardContent = this.t("CONFIRM_CARDMSG", quickMsg) + this.t("CONFIRM_RECIPIENT", group);
+          let cardContent = this.t("CONFIRM_QUICKCARD", quickMsg);
           this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
         }
       })
@@ -415,144 +415,3 @@ let helpStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.HELP, {
     console.log("Session ended in help state: " + this.event.request.reason);
   }
 });
-
-// let triggerQuickCommand = (token, command) => {
-//   return new Promise ((resolve, reject) => {
-//   let options = {
-//   "method": "GET",
-//   "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-//   "port": null,
-//   "path": "/triggerQuickCommand",
-//   "headers": {
-//     "token": token,
-//     "commandname": command,
-//     "cache-control": "no-cache"
-//   }
-//   };
-
-//   let body = '';
-//   let req = https.request(options, res => {
-//     res.on('data', d => {
-//       body += d;
-//     })
-//     res.on('error', e => {
-//       reject(e);
-//     })
-//     res.on('end', ()=>{
-//       if (body === "Unauthorized") {
-//         console.log(body);
-//         resolve({invalidToken : true, body : body})
-//       } else {
-//         resolve(JSON.parse(body));
-//       }
-//     })
-//   })
-//   req.on('error', e => {
-//     reject(e);
-//   })
-//   req.end();
-//   })
-// };
-
-// let sendToGroup = (useremail, groupname, messageid, commandid, message) => {
-//  return new Promise ((resolve, reject) => {
-//    let options = {
-//     "method": "GET",
-//     "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-//     "port": null,
-//     "path": "/sendToGroup",
-//     "headers": {
-//       "useremail": useremail,
-//       "groupname": groupname,
-//       "mediumtype": "0",
-//       "messageid": messageid,
-//       "commandid": commandid,
-//       "message": message,
-//       "cache-control": "no-cache"
-//     }
-//    }
-//   let body = '';
-//   let req = https.request(options, res => {
-//     res.on('data', d => {
-//       body += d;
-//     })
-//     res.on('error', e => {
-//       reject(e);
-//     })
-//     res.on('end', ()=>{
-//       console.log(body);
-//       resolve(JSON.parse(body));
-//     })
-//   })
-//   req.on('error', e => {
-//     reject(e);
-//   })
-//   req.end();
-//   })
-// };
-
-// let sendCustomMessage = (inputToken, group, message) => {
-//  return new Promise ((resolve, reject) => {
-//    let options = {
-//     "method": "GET",
-//     "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-//     "port": null,
-//     "path": "/sendCustomMessage",
-//     "headers": {
-//       "token": inputToken,
-//       "groupname": group,
-//       "mediumtype": "0",
-//       "message": message,
-//       "cache-control": "no-cache"
-//     }
-//    }
-//   let body = '';
-//   let req = https.request(options, res => {
-//     res.on('data', d => {
-//       body += d;
-//     })
-//     res.on('error', e => {
-//       reject(e);
-//     })
-//     res.on('end', ()=>{
-//       resolve(JSON.parse(body));
-//     })
-//   })
-//   req.on('error', e => {
-//     reject(e);
-//   })
-//   req.end();
-//   })
-// }
-
-// let triggerSecretCommand = (inputToken, secretMsg) => {
-//  return new Promise ((resolve, reject) => {
-//    let options = {
-//     "method": "GET",
-//     "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-//     "port": null,
-//     "path": "/triggerSecretCommand",
-//     "headers": {
-//       "token": inputToken,
-//       "secrettrigger": secretMsg,
-//       "cache-control": "no-cache"
-//     }
-//    }
-//   let body = '';
-//   let req = https.request(options, res => {
-//     res.on('data', d => {
-//       body += d;
-//     })
-//     res.on('error', e => {
-//       reject(e);
-//     })
-//     res.on('end', ()=>{
-//       resolve(JSON.parse(body));
-//     })
-//   })
-//   req.on('error', e => {
-//     reject(e);
-//   })
-//   req.end();
-//  })
-// }
