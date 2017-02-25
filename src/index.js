@@ -35,8 +35,8 @@ const languageString = {
       "SELECT_GROUP": "Who would you like to send this to? ",
       "GROUP_ERROR": "Could not find that group. Please say who you would like to send this to. ",
       "CONFIRM_SENT": "Message has been sent",
-      "CONFIRM_SENTCARD": "Quick message has been sent to %s.",
-      "SECRET_CARD": "%s has been sent.",
+      "CONFIRM_CARDMSG": "%s has been sent to ",
+      "SECRET_CARD": "%s has been sent to ",
       "SECRET_ERROR": "I couldn\'t find that command. Please repeat your command. ",
       "SECRET_REPEAT": "What would you like to do? ",
       "HELP_SECRET": "Say one of your pre-saved commands to trigger an action. ",
@@ -59,8 +59,8 @@ exports.handler = function(event, context, callback) {
     startStateHandlers,
     quickMsgStateHandlers,
     customMsgStateHandlers,
-    secretStateHandlers
-    // helpStateHandlers
+    secretStateHandlers,
+    helpStateHandlers
     );
   alexa.execute();
 };
@@ -182,7 +182,7 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
         } else {
           let speechOutput = this.t("CONFIRM_SENT");
           let cardTitle = "Atexta";
-          let cardContent = this.t("CONFIRM_SENTCARD", results.group)
+          let cardContent = this.t("CONFIRM_CARDMSG", quickMsg) + results.group;
           this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
         }
       })
@@ -211,7 +211,7 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
       if (result.sentEmail || result.sentText) {
         let speechOutput = this.t("CONFIRM_SENT");
         let cardTitle = "Atexta";
-        let cardContent = this.t("CONFIRM_SENTCARD", group)
+        let cardContent = this.t("CONFIRM_CARDMSG", quickMsg) + results.group;
         this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
       } else {
         let speechOutput = this.t("GROUP_ERROR");
@@ -275,7 +275,7 @@ let customMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.CUSTOM, {
       } else if (results.sentEmail || results.sentText) {
         let speechOutput = this.t("CONFIRM_SENT");
         let cardTitle = "Atexta";
-        let cardContent = this.t("CONFIRM_SENTCARD", group)
+        let cardContent = this.t("CONFIRM_CARDMSG", quickMsg) + results.group;
         this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
       } else {
         let speechOutput = this.t("GROUP_ERROR");
@@ -335,10 +335,9 @@ let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
             let cardContent = this.t("VERIFY_MESSAGECARD", secretMsg);
             this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
           } else {
-            let secretMsg = this.attributes["secretMsg"];
-            let speechOutput = result;
+            let speechOutput = JSON.stringify(result);
             let cardTitle = "Atexta";
-            let cardContent = this.t("SECRET_CARD", secretMsg);
+            let cardContent = this.t("SECRET_CARD", secretMsg) + results.group;
             this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
           }
         })
@@ -372,7 +371,7 @@ let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
   }
 });
 
-let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
+let helpStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.HELP, {
   "helpUser": function(secret) {
     let speechOutput = secret ? this.t("HELP_SECRET") : this.t("HELP_MESSAGE");
     this.emit(":ask", speechOutput, speechOutput);
