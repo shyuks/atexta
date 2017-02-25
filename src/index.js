@@ -1,12 +1,7 @@
 "use strict";
 const Alexa = require('alexa-sdk');
 const APP_ID = 'amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f';
-const http = require('http');
-const https = require('https');
-
-const Sequelize = require('sequelize');
-const cred = require('./keys');
-const db = new Sequelize(`mysql://${cred.username}:${cred.password}@aws-us-east-1-portal.25.dblayer.com:17284/compose`);
+const utils = require('./utils');
 
 const ATEXTA_STATES = {
   START: "_STARTMODE",
@@ -28,21 +23,22 @@ const languageString = {
       "NEW_USERCARD": "Please download the a texta app or visit www.my a texta.com to customize your messages.",
       "QUICK_NOCOMMAND": "I couldn\'t find that pre-saved message. What would you like to send? ",
       "QUICK_REPEAT": "What quick message would you like to send? ",
-      "QUICK_ERROR": "I\'m having issues accessing your list of messages at the moment. Please try again later. ",
-      "CUSTOM_ERROR": "I\'ve run into a problem sending that message. Let\'s try again. " + 
-        "What would you like to send? ",
+      "CONNECT_ERROR": "I\'m having issues accessing your list of messages at the moment. Please try again later. ",
       "CUSTOM_REPEAT": "What custom message would you like to send? ",
       "VERIFY_MESSAGE": "Command has been verified and is ready for future use. ",
       "VERIFY_MESSAGECARD": "The command, %s, has been verified and is ready for future use.",
       "SELECT_GROUP": "Who would you like to send this to? ",
       "GROUP_ERROR": "Could not find that group. Please say who you would like to send this to. ",
       "CONFIRM_SENT": "Message has been sent",
-      "CONFIRM_SENTCARD": "Quick message has been sent to %s.",
-      "SECRET_CARD": "%s has been sent.",
+      "CONFIRM_QUICKCARD": "Quick message, %s, has been sent.",
+      "CONFIRM_CARDMSG": "'%s' has been sent ",
+      "CONFIRM_RECIPIENT": "to %s",
+      "SECRET_CARD": "'%s' has been sent. ",
       "SECRET_ERROR": "I couldn\'t find that command. Please repeat your command. ",
-      "SECRET_REPEAT": "Sorry, I didn\'t get that. Please repeat your command. ",
-      "HELP_MESSAGE": "You can send a pre-saved quick message by saying, send quick message. " +
-        "Or send a new custom message by saying, send custom message.",
+      "SECRET_REPEAT": "What would you like to do? ",
+      "HELP_SECRET": "Say one of your pre-saved commands to trigger an action. ",
+      "HELP_MESSAGE": "You can send a pre-saved quick message by saying, send quick message, followed by what you\'d like to send. " +
+        "Or send a new custom message by saying, send custom message, followed by your message.",
       "END_MESSAGE": "Goodbye.",
       "START_UNHANDLED": "Sorry, I didn\'t get that. What would you like to do? ",
       "QUICK_UNHANDLED": "To send a quick message, say, send quick message, before your message. ",
@@ -60,8 +56,8 @@ exports.handler = function(event, context, callback) {
     startStateHandlers,
     quickMsgStateHandlers,
     customMsgStateHandlers,
-    secretStateHandlers
-    // helpStateHandlers
+    secretStateHandlers,
+    helpStateHandlers
     );
   alexa.execute();
 };
@@ -87,9 +83,8 @@ let newSessionHandlers = {
     this.emitWithState("SendSecretIntent");
   },
   "AMAZON.HelpIntent": function() {
-    this.emit(":tell", "in initial help intent");
-    // this.handler.state = ATEXTA_STATES.HELP;
-    // this.emitWithState("helpUser", false);
+    this.handler.state = ATEXTA_STATES.HELP;
+    this.emitWithState("helpUser", false);
   },
   "Unhandled": function() {
     let speechOutput = this.t("START_UNHANDLED");
@@ -146,7 +141,6 @@ let startStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.START, {
   },
   "Unhandled": function() {
     let speechOutput = this.t("START_UNHANDLED");
-    this.handler.state = ATEXTA_STATES.START
     this.emit(":ask", speechOutput, speechOutput);
   },
   "SessionEndedRequest": function() {
@@ -159,7 +153,7 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
     let token = this.event.session.user.accessToken;
     let quickMsg = this.attributes["quickMsg"];
     if (token) {
-      triggerQuickCommand(token, quickMsg)
+      utils.triggerQuickCommand(token, quickMsg)
       .then(results => {
         if (results.newUser) {
           let speechOutput = this.t("NEW_USER");
@@ -169,6 +163,7 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
         } else if (results.NoCommand) {
           let speechOutput = this.t("QUICK_NOCOMMAND");
           let repromptText = this.t("QUICK_REPEAT");
+          this.attributes["repeatPrompt"] = speechOutput;
           this.emit(":ask", speechOutput, repromptText);
         } else if (results.NotVerified) {
           let speechOutput = this.t("VERIFY_MESSAGE");
@@ -179,18 +174,18 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
           this.attributes["email"] = results.email;
           this.attributes["data"] = results.data;
           let speechOutput = this.t("SELECT_GROUP");
+          this.attributes["repeatPrompt"] = speechOutput;
           this.emit(":ask", speechOutput, speechOutput);
         } else {
           let speechOutput = this.t("CONFIRM_SENT");
           let cardTitle = "Atexta";
-          let cardContent = this.t("CONFIRM_SENTCARD", results.group)
+          let cardContent = this.t("CONFIRM_QUICKCARD", quickMsg);
           this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
         }
       })
       .catch(error => {
-        let speechOutput = this.t("QUICK_ERROR");
-        this.handler.state = ATEXTA_STATES.QUICK;
-        this.emit(":ask", speechOutput, speechOutput);
+        let speechOutput = this.t("CONNECT_ERROR");
+        this.emit(":tell", speechOutput);
       })
     } else {
       let speechOutput = this.t("LINK_ACCOUNT");
@@ -204,25 +199,30 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
   "RecipientIntent": function() {
     let useremail = this.attributes["email"];
     let group = this.event.request.intent.slots.Group.value;
-    this.attributes["group"] = group;
     let messageid = this.attributes["data"].MessageId;
     let commandid = this.attributes["data"].CommandId;
     let message = this.attributes["data"].text;
-    sendToGroup(useremail, group, messageid, commandid, message)
-    .then(result => {
-      if (result.sentEmail || result.sentText) {
+    let quickMsg = this.attributes["quickMsg"];
+    utils.sendToGroup(useremail, group, messageid, commandid, message)
+    .then(results => {
+      if (results.sentEmail || results.sentText) {
         let speechOutput = this.t("CONFIRM_SENT");
         let cardTitle = "Atexta";
-        let cardContent = this.t("CONFIRM_SENTCARD", group)
+        let cardContent = this.t("CONFIRM_CARDMSG", quickMsg) + this.t("CONFIRM_RECIPIENT", group);
         this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
       } else {
         let speechOutput = this.t("GROUP_ERROR");
+        this.attributes["repeatPrompt"] = speechOutput;
         this.emit(":ask", speechOutput, speechOutput);
       }
     })
+    .catch(error => {
+      let speechOutput = this.t("CONNECT_ERROR");
+      this.emit(":tell", speechOutput);
+    })
   },
   "AMAZON.RepeatIntent": function() {
-    let speechOutput = this.t("QUICK_REPEAT")
+    let speechOutput = this.attributes["repeatPrompt"] || this.t("QUICK_REPEAT");
     this.emit(":ask", speechOutput, speechOutput)
   },
   "AMAZON.HelpIntent": function() {
@@ -251,6 +251,7 @@ let customMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.CUSTOM, {
     let token = this.event.session.user.accessToken;
     if (token) {
       let speechOutput = this.t("SELECT_GROUP");
+      this.attributes["repeatPrompt"] = speechOutput;
       this.emit(":ask", speechOutput, speechOutput);
     } else {
       let speechOutput = this.t("LINK_ACCOUNT");
@@ -265,7 +266,7 @@ let customMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.CUSTOM, {
     let token = this.event.session.user.accessToken;
     let group = this.event.request.intent.slots.Group.value;
     let customMsg = this.attributes["customMsg"];
-    sendCustomMessage(token, group, customMsg)
+    utils.sendCustomMessage(token, group, customMsg)
     .then(results => {
       if (results.newUser) {
         let speechOutput = this.t("NEW_USER");
@@ -275,20 +276,21 @@ let customMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.CUSTOM, {
       } else if (results.sentEmail || results.sentText) {
         let speechOutput = this.t("CONFIRM_SENT");
         let cardTitle = "Atexta";
-        let cardContent = this.t("CONFIRM_SENTCARD", group)
+        let cardContent = this.t("CONFIRM_CARDMSG", customMsg) + this.t("CONFIRM_RECIPIENT", group);
         this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
       } else {
         let speechOutput = this.t("GROUP_ERROR");
+        this.attributes["repeatPrompt"] = speechOutput;
         this.emit(":ask", speechOutput, speechOutput);
       }
     })
     .catch(error => {
-      let speechOutput = this.t("CUSTOM_ERROR");
-      this.emit(":ask", speechOutput);
+      let speechOutput = this.t("CONNECT_ERROR");
+      this.emit(":tell", speechOutput);
     })
   },
   "AMAZON.RepeatIntent": function() {
-    let speechOutput = this.t("CUSTOM_REPEAT");
+    let speechOutput = this.attributes["repeatPrompt"] || this.t("CUSTOM_REPEAT");
     this.emit(":ask", speechOutput, speechOutput);
   },
   "AMAZON.HelpIntent": function() {
@@ -300,7 +302,8 @@ let customMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.CUSTOM, {
     this.emit(":tell", speechOutput);
   },
   "AMAZON.CancelIntent": function() {
-    this.emit("StopIntent");
+    let speechOutput = this.t("END_MESSAGE");
+    this.emit(":tell", speechOutput);
   },
   "Unhandled": function() {
     let speechOutput = this.t("CUSTOM_UNHANDLED");
@@ -316,29 +319,33 @@ let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
     let token = this.event.session.user.accessToken;
     let secretMsg = this.attributes["secretMsg"];
     if (token) {
-        triggerSecretCommand(token, secretMsg)
-        .then(result => {
-          if (result.newUser) {
-            let speechOutput = this.t("NEW_USER");
-            let cardTitle = "Atexta";
-            let cardContent = this.t("NEW_USERCARD");
-            this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
-          } else if (results.NoCommand) {
-            let speechOutput = this.t("SECRET_ERROR");
-            this.emit(":ask", speechOutput, speechOutput);
-          } else if (results.NotVerified) {
-            let speechOutput = this.t("VERIFY_MESSAGE");
-            let cardTitle = "Atexta";
-            let cardContent = this.t("VERIFY_MESSAGECARD", quickMsg);
-            this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
-          } else {
-            let secretMsg = this.attributes["secretMsg"];
-            let speechOutput = result;
-            let cardTitle = "Atexta";
-            let cardContent = this.t("SECRET_CARD", secretMsg);
-            this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
-          }
-        })
+      utils.triggerSecretCommand(token, secretMsg)
+      .then(results => {
+        if (results.newUser) {
+          let speechOutput = this.t("NEW_USER");
+          let cardTitle = "Atexta";
+          let cardContent = this.t("NEW_USERCARD");
+          this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
+        } else if (results.NoCommand) {
+          let speechOutput = this.t("SECRET_ERROR");
+          this.attributes["repeatPrompt"] = speechOutput;
+          this.emit(":ask", speechOutput, speechOutput);
+        } else if (results.NotVerified) {
+          let speechOutput = this.t("VERIFY_MESSAGE");
+          let cardTitle = "Atexta";
+          let cardContent = this.t("VERIFY_MESSAGECARD", secretMsg);
+          this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
+        } else {
+          let speechOutput = results.response;
+          let cardTitle = "Atexta";
+          let cardContent = this.t("SECRET_CARD", secretMsg);
+          this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
+        }
+      })
+      .catch(error => {
+        let speechOutput = this.t("CONNECT_ERROR");
+        this.emit(":tell", speechOutput);
+      })
     } else {
       let speechOutput = this.t("LINK_ACCOUNT");
       this.emit(":tellWithLinkAccountCard", speechOutput)
@@ -369,143 +376,42 @@ let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
   }
 });
 
-let triggerQuickCommand = (token, command) => {
-  return new Promise ((resolve, reject) => {
-  let options = {
-  "method": "GET",
-  "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-  "port": null,
-  "path": "/triggerQuickCommand",
-  "headers": {
-    "token": token,
-    "commandname": command,
-    "cache-control": "no-cache"
+let helpStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.HELP, {
+  "helpUser": function(secret) {
+    let speechOutput = secret ? this.t("HELP_SECRET") : this.t("HELP_MESSAGE");
+    this.emit(":ask", speechOutput, speechOutput);
+  },
+  "QuickIntent": function() {
+    this.attributes["quickMsg"] = this.event.request.intent.slots.QuickMessage.value;
+    this.handler.state = ATEXTA_STATES.QUICK;
+    this.emitWithState("SendQuickIntent");
+  },
+  "CustomIntent": function() {
+    this.attributes["customMsg"] = this.event.request.intent.slots.CustomMessage.value;    
+    this.handler.state = ATEXTA_STATES.CUSTOM;
+    this.emitWithState("SendCustomIntent");
+  },
+  "SecretIntent": function() {
+    this.attributes["secretMsg"] = this.event.request.intent.slots.SecretMessage.value;
+    this.handler.state = ATEXTA_STATES.SECRET;
+    this.emitWithState("SendSecretIntent");
+  },
+  "AMAZON.RepeatIntent": function() {
+    let speechOutput = this.t("SECRET_REPEAT")
+    this.emit(":ask", speechOutput, speechOutput)
+  },
+  "AMAZON.HelpIntent": function() {
+    this.emitWithState("helpUser", true);
+  },
+  "AMAZON.StopIntent": function() {
+    let speechOutput = this.t("END_MESSAGE");
+    this.emit(":tell", speechOutput);
+  },
+  "AMAZON.CancelIntent": function() {
+    let speechOutput = this.t("END_MESSAGE");
+    this.emit(":tell", speechOutput);
+  },
+  "SessionEndedRequest": function() {
+    console.log("Session ended in help state: " + this.event.request.reason);
   }
-  };
-
-  let body = '';
-  let req = https.request(options, res => {
-    res.on('data', d => {
-      body += d;
-    })
-    res.on('error', e => {
-      reject(e);
-    })
-    res.on('end', ()=>{
-      if (body === "Unauthorized") {
-        console.log(body);
-        resolve({invalidToken : true, body : body})
-      } else {
-        resolve(JSON.parse(body));
-      }
-    })
-  })
-  req.on('error', e => {
-    reject(e);
-  })
-  req.end();
-  })
-};
-
-let sendToGroup = (useremail, groupname, messageid, commandid, message) => {
- return new Promise ((resolve, reject) => {
-   let options = {
-    "method": "GET",
-    "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-    "port": null,
-    "path": "/sendToGroup",
-    "headers": {
-      "useremail": useremail,
-      "groupname": groupname,
-      "mediumtype": "0",
-      "messageid": messageid,
-      "commandid": commandid,
-      "message": message,
-      "cache-control": "no-cache"
-    }
-   }
-  let body = '';
-  let req = https.request(options, res => {
-    res.on('data', d => {
-      body += d;
-    })
-    res.on('error', e => {
-      reject(e);
-    })
-    res.on('end', ()=>{
-      console.log(body);
-      resolve(JSON.parse(body));
-    })
-  })
-  req.on('error', e => {
-    reject(e);
-  })
-  req.end();
-  })
-};
-
-let sendCustomMessage = (inputToken, group, message) => {
- return new Promise ((resolve, reject) => {
-   let options = {
-    "method": "GET",
-    "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-    "port": null,
-    "path": "/sendCustomMessage",
-    "headers": {
-      "token": inputToken,
-      "groupname": group,
-      "mediumtype": "0",
-      "message": message,
-      "cache-control": "no-cache"
-    }
-   }
-  let body = '';
-  let req = https.request(options, res => {
-    res.on('data', d => {
-      body += d;
-    })
-    res.on('error', e => {
-      reject(e);
-    })
-    res.on('end', ()=>{
-      resolve(JSON.parse(body));
-    })
-  })
-  req.on('error', e => {
-    reject(e);
-  })
-  req.end();
-  })
-}
-
-let triggerSecretCommand = (inputToken, secretMsg) => {
- return new Promise ((resolve, reject) => {
-   let options = {
-    "method": "GET",
-    "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-    "port": null,
-    "path": "/triggerSecretCommand",
-    "headers": {
-      "token": inputToken,
-      "secrettrigger": secretMsg,
-      "cache-control": "no-cache"
-    }
-   }
-  let body = '';
-  let req = https.request(options, res => {
-    res.on('data', d => {
-      body += d;
-    })
-    res.on('error', e => {
-      reject(e);
-    })
-    res.on('end', ()=>{
-      resolve(JSON.parse(body));
-    })
-  })
-  req.on('error', e => {
-    reject(e);
-  })
-  req.end();
- })
-}
+});
