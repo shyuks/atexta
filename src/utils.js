@@ -1,23 +1,97 @@
 'use strict'
 const http = require('http');
 const https = require('https');
-const keys = require('./keys')
-const mailgun = require('mailgun-js')({apiKey: keys.emailKey, domain: keys.emailDomain});
-const twilio = require('twilio');
-const client = twilio(keys.twilioKey, keys.twilioID);
 
-module.exports.getUserInfo = (token) => {
+module.exports.triggerQuickCommand = (token, command) => {
   return new Promise ((resolve, reject) => {
   let options = {
   "method": "GET",
-  "hostname": "rakan.auth0.com",
+  "hostname": "enigmatic-wildwood-66230.herokuapp.com",
   "port": null,
-  "path": "/userinfo",
+  "path": "/triggerQuickCommand",
   "headers": {
-    "authorization": `Bearer ${token}`,
+    "token": token,
+    "commandname": command,
     "cache-control": "no-cache"
-    }
+  }
   };
+
+  let body = '';
+  let req = https.request(options, res => {
+    res.on('data', d => {
+      body += d;
+    })
+    res.on('error', e => {
+      reject(e);
+    })
+    res.on('end', ()=>{
+      if (body === "Unauthorized") {
+        console.log(body);
+        resolve({invalidToken : true, body : body})
+      } else {
+        resolve(JSON.parse(body));
+      }
+    })
+  })
+  req.on('error', e => {
+    reject(e);
+  })
+  req.end();
+  })
+};
+
+module.exports.sendToGroup = (useremail, groupname, messageid, commandid, message) => {
+ return new Promise ((resolve, reject) => {
+   let options = {
+    "method": "GET",
+    "hostname": "enigmatic-wildwood-66230.herokuapp.com",
+    "port": null,
+    "path": "/sendToGroup",
+    "headers": {
+      "useremail": useremail,
+      "groupname": groupname,
+      "mediumtype": "0",
+      "messageid": messageid,
+      "commandid": commandid,
+      "message": message,
+      "cache-control": "no-cache"
+    }
+   }
+  let body = '';
+  let req = https.request(options, res => {
+    res.on('data', d => {
+      body += d;
+    })
+    res.on('error', e => {
+      reject(e);
+    })
+    res.on('end', ()=>{
+      console.log(body);
+      resolve(JSON.parse(body));
+    })
+  })
+  req.on('error', e => {
+    reject(e);
+  })
+  req.end();
+  })
+};
+
+module.exports.sendCustomMessage = (inputToken, group, message) => {
+ return new Promise ((resolve, reject) => {
+   let options = {
+    "method": "GET",
+    "hostname": "enigmatic-wildwood-66230.herokuapp.com",
+    "port": null,
+    "path": "/sendCustomMessage",
+    "headers": {
+      "token": inputToken,
+      "groupname": group,
+      "mediumtype": "0",
+      "message": message,
+      "cache-control": "no-cache"
+    }
+   }
   let body = '';
   let req = https.request(options, res => {
     res.on('data', d => {
@@ -35,23 +109,36 @@ module.exports.getUserInfo = (token) => {
   })
   req.end();
   })
-};
+}
 
-module.exports.sendText = (recipient, text) => {
-  console.log(recipient, text);
-  client.sendMessage({
-    to : '7144864486',
-    from: '12134863241',
-    body: `rec:${recipient} txt:${text}`
+module.exports.triggerSecretCommand = (inputToken, secretMsg) => {
+ return new Promise ((resolve, reject) => {
+   let options = {
+    "method": "GET",
+    "hostname": "enigmatic-wildwood-66230.herokuapp.com",
+    "port": null,
+    "path": "/triggerSecretCommand",
+    "headers": {
+      "token": inputToken,
+      "secrettrigger": secretMsg,
+      "cache-control": "no-cache"
+    }
+   }
+  let body = '';
+  let req = https.request(options, res => {
+    res.on('data', d => {
+      body += d;
+    })
+    res.on('error', e => {
+      reject(e);
+    })
+    res.on('end', ()=>{
+      resolve(JSON.parse(body));
+    })
   })
-};
-
-module.exports.sendEmail = (recipient, message) => {
-  let data = {
-    from: 'Mailgun Sandbox <postmaster@sandbox44cda2e06ef8459d8a4b65d5038f6d39.mailgun.org>',
-    to: 'rnesh90@yahoo.com',
-    subject: 'Hello',
-    text: `recipient : ${recipient}, message: ${message}`
-  };
-  mailgun.messages().send(data);
+  req.on('error', e => {
+    reject(e);
+  })
+  req.end();
+ })
 }

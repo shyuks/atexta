@@ -1,12 +1,7 @@
 "use strict";
 const Alexa = require('alexa-sdk');
 const APP_ID = 'amzn1.ask.skill.50922e58-7ef6-4b08-b502-9b931eba482f';
-const http = require('http');
-const https = require('https');
-
-const Sequelize = require('sequelize');
-const cred = require('./keys');
-const db = new Sequelize(`mysql://${cred.username}:${cred.password}@aws-us-east-1-portal.25.dblayer.com:17284/compose`);
+const utils = require('./utils');
 
 const ATEXTA_STATES = {
   START: "_STARTMODE",
@@ -35,8 +30,9 @@ const languageString = {
       "SELECT_GROUP": "Who would you like to send this to? ",
       "GROUP_ERROR": "Could not find that group. Please say who you would like to send this to. ",
       "CONFIRM_SENT": "Message has been sent",
-      "CONFIRM_CARDMSG": "%s has been sent to ",
-      "SECRET_CARD": "%s has been sent to ",
+      "CONFIRM_CARDMSG": "'%s' has been sent ",
+      "CONFIRM_RECIPIENT": "to %s",
+      "SECRET_CARD": "'%s' has been sent. ",
       "SECRET_ERROR": "I couldn\'t find that command. Please repeat your command. ",
       "SECRET_REPEAT": "What would you like to do? ",
       "HELP_SECRET": "Say one of your pre-saved commands to trigger an action. ",
@@ -156,7 +152,7 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
     let token = this.event.session.user.accessToken;
     let quickMsg = this.attributes["quickMsg"];
     if (token) {
-      triggerQuickCommand(token, quickMsg)
+      utils.triggerQuickCommand(token, quickMsg)
       .then(results => {
         if (results.newUser) {
           let speechOutput = this.t("NEW_USER");
@@ -180,15 +176,15 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
           this.attributes["repeatPrompt"] = speechOutput;
           this.emit(":ask", speechOutput, speechOutput);
         } else {
+          let group = results.group;
           let speechOutput = this.t("CONFIRM_SENT");
           let cardTitle = "Atexta";
-          let cardContent = this.t("CONFIRM_CARDMSG", quickMsg) + results.group;
+          let cardContent = this.t("CONFIRM_CARDMSG", quickMsg) + this.t("CONFIRM_RECIPIENT", group);
           this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
         }
       })
       .catch(error => {
         let speechOutput = this.t("CONNECT_ERROR");
-        this.handler.state = ATEXTA_STATES.QUICK;
         this.emit(":tell", speechOutput);
       })
     } else {
@@ -206,18 +202,23 @@ let quickMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.QUICK, {
     let messageid = this.attributes["data"].MessageId;
     let commandid = this.attributes["data"].CommandId;
     let message = this.attributes["data"].text;
-    sendToGroup(useremail, group, messageid, commandid, message)
-    .then(result => {
-      if (result.sentEmail || result.sentText) {
+    let quickMsg = this.attributes["quickMsg"];
+    utils.sendToGroup(useremail, group, messageid, commandid, message)
+    .then(results => {
+      if (results.sentEmail || results.sentText) {
         let speechOutput = this.t("CONFIRM_SENT");
         let cardTitle = "Atexta";
-        let cardContent = this.t("CONFIRM_CARDMSG", quickMsg) + results.group;
+        let cardContent = this.t("CONFIRM_CARDMSG", quickMsg) + this.t("CONFIRM_RECIPIENT", group);
         this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
       } else {
         let speechOutput = this.t("GROUP_ERROR");
         this.attributes["repeatPrompt"] = speechOutput;
         this.emit(":ask", speechOutput, speechOutput);
       }
+    })
+    .catch(error => {
+      let speechOutput = this.t("CONNECT_ERROR");
+      this.emit(":tell", speechOutput);
     })
   },
   "AMAZON.RepeatIntent": function() {
@@ -265,7 +266,7 @@ let customMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.CUSTOM, {
     let token = this.event.session.user.accessToken;
     let group = this.event.request.intent.slots.Group.value;
     let customMsg = this.attributes["customMsg"];
-    sendCustomMessage(token, group, customMsg)
+    utils.sendCustomMessage(token, group, customMsg)
     .then(results => {
       if (results.newUser) {
         let speechOutput = this.t("NEW_USER");
@@ -275,7 +276,7 @@ let customMsgStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.CUSTOM, {
       } else if (results.sentEmail || results.sentText) {
         let speechOutput = this.t("CONFIRM_SENT");
         let cardTitle = "Atexta";
-        let cardContent = this.t("CONFIRM_CARDMSG", quickMsg) + results.group;
+        let cardContent = this.t("CONFIRM_CARDMSG", customMsg) + this.t("CONFIRM_RECIPIENT", group);
         this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
       } else {
         let speechOutput = this.t("GROUP_ERROR");
@@ -318,29 +319,33 @@ let secretStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.SECRET, {
     let token = this.event.session.user.accessToken;
     let secretMsg = this.attributes["secretMsg"];
     if (token) {
-        triggerSecretCommand(token, secretMsg)
-        .then(result => {
-          if (result.newUser) {
-            let speechOutput = this.t("NEW_USER");
-            let cardTitle = "Atexta";
-            let cardContent = this.t("NEW_USERCARD");
-            this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
-          } else if (results.NoCommand) {
-            let speechOutput = this.t("SECRET_ERROR");
-            this.attributes["repeatPrompt"] = speechOutput;
-            this.emit(":ask", speechOutput, speechOutput);
-          } else if (results.NotVerified) {
-            let speechOutput = this.t("VERIFY_MESSAGE");
-            let cardTitle = "Atexta";
-            let cardContent = this.t("VERIFY_MESSAGECARD", secretMsg);
-            this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
-          } else {
-            let speechOutput = JSON.stringify(result);
-            let cardTitle = "Atexta";
-            let cardContent = this.t("SECRET_CARD", secretMsg) + results.group;
-            this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
-          }
-        })
+      utils.triggerSecretCommand(token, secretMsg)
+      .then(results => {
+        if (results.newUser) {
+          let speechOutput = this.t("NEW_USER");
+          let cardTitle = "Atexta";
+          let cardContent = this.t("NEW_USERCARD");
+          this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
+        } else if (results.NoCommand) {
+          let speechOutput = this.t("SECRET_ERROR");
+          this.attributes["repeatPrompt"] = speechOutput;
+          this.emit(":ask", speechOutput, speechOutput);
+        } else if (results.NotVerified) {
+          let speechOutput = this.t("VERIFY_MESSAGE");
+          let cardTitle = "Atexta";
+          let cardContent = this.t("VERIFY_MESSAGECARD", secretMsg);
+          this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
+        } else {
+          let speechOutput = results.response;
+          let cardTitle = "Atexta";
+          let cardContent = this.t("SECRET_CARD", secretMsg);
+          this.emit(":tellWithCard", speechOutput, cardTitle, cardContent);
+        }
+      })
+      .catch(error => {
+        let speechOutput = this.t("CONNECT_ERROR");
+        this.emit(":tell", speechOutput);
+      })
     } else {
       let speechOutput = this.t("LINK_ACCOUNT");
       this.emit(":tellWithLinkAccountCard", speechOutput)
@@ -411,143 +416,143 @@ let helpStateHandlers = Alexa.CreateStateHandler(ATEXTA_STATES.HELP, {
   }
 });
 
-let triggerQuickCommand = (token, command) => {
-  return new Promise ((resolve, reject) => {
-  let options = {
-  "method": "GET",
-  "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-  "port": null,
-  "path": "/triggerQuickCommand",
-  "headers": {
-    "token": token,
-    "commandname": command,
-    "cache-control": "no-cache"
-  }
-  };
+// let triggerQuickCommand = (token, command) => {
+//   return new Promise ((resolve, reject) => {
+//   let options = {
+//   "method": "GET",
+//   "hostname": "enigmatic-wildwood-66230.herokuapp.com",
+//   "port": null,
+//   "path": "/triggerQuickCommand",
+//   "headers": {
+//     "token": token,
+//     "commandname": command,
+//     "cache-control": "no-cache"
+//   }
+//   };
 
-  let body = '';
-  let req = https.request(options, res => {
-    res.on('data', d => {
-      body += d;
-    })
-    res.on('error', e => {
-      reject(e);
-    })
-    res.on('end', ()=>{
-      if (body === "Unauthorized") {
-        console.log(body);
-        resolve({invalidToken : true, body : body})
-      } else {
-        resolve(JSON.parse(body));
-      }
-    })
-  })
-  req.on('error', e => {
-    reject(e);
-  })
-  req.end();
-  })
-};
+//   let body = '';
+//   let req = https.request(options, res => {
+//     res.on('data', d => {
+//       body += d;
+//     })
+//     res.on('error', e => {
+//       reject(e);
+//     })
+//     res.on('end', ()=>{
+//       if (body === "Unauthorized") {
+//         console.log(body);
+//         resolve({invalidToken : true, body : body})
+//       } else {
+//         resolve(JSON.parse(body));
+//       }
+//     })
+//   })
+//   req.on('error', e => {
+//     reject(e);
+//   })
+//   req.end();
+//   })
+// };
 
-let sendToGroup = (useremail, groupname, messageid, commandid, message) => {
- return new Promise ((resolve, reject) => {
-   let options = {
-    "method": "GET",
-    "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-    "port": null,
-    "path": "/sendToGroup",
-    "headers": {
-      "useremail": useremail,
-      "groupname": groupname,
-      "mediumtype": "0",
-      "messageid": messageid,
-      "commandid": commandid,
-      "message": message,
-      "cache-control": "no-cache"
-    }
-   }
-  let body = '';
-  let req = https.request(options, res => {
-    res.on('data', d => {
-      body += d;
-    })
-    res.on('error', e => {
-      reject(e);
-    })
-    res.on('end', ()=>{
-      console.log(body);
-      resolve(JSON.parse(body));
-    })
-  })
-  req.on('error', e => {
-    reject(e);
-  })
-  req.end();
-  })
-};
+// let sendToGroup = (useremail, groupname, messageid, commandid, message) => {
+//  return new Promise ((resolve, reject) => {
+//    let options = {
+//     "method": "GET",
+//     "hostname": "enigmatic-wildwood-66230.herokuapp.com",
+//     "port": null,
+//     "path": "/sendToGroup",
+//     "headers": {
+//       "useremail": useremail,
+//       "groupname": groupname,
+//       "mediumtype": "0",
+//       "messageid": messageid,
+//       "commandid": commandid,
+//       "message": message,
+//       "cache-control": "no-cache"
+//     }
+//    }
+//   let body = '';
+//   let req = https.request(options, res => {
+//     res.on('data', d => {
+//       body += d;
+//     })
+//     res.on('error', e => {
+//       reject(e);
+//     })
+//     res.on('end', ()=>{
+//       console.log(body);
+//       resolve(JSON.parse(body));
+//     })
+//   })
+//   req.on('error', e => {
+//     reject(e);
+//   })
+//   req.end();
+//   })
+// };
 
-let sendCustomMessage = (inputToken, group, message) => {
- return new Promise ((resolve, reject) => {
-   let options = {
-    "method": "GET",
-    "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-    "port": null,
-    "path": "/sendCustomMessage",
-    "headers": {
-      "token": inputToken,
-      "groupname": group,
-      "mediumtype": "0",
-      "message": message,
-      "cache-control": "no-cache"
-    }
-   }
-  let body = '';
-  let req = https.request(options, res => {
-    res.on('data', d => {
-      body += d;
-    })
-    res.on('error', e => {
-      reject(e);
-    })
-    res.on('end', ()=>{
-      resolve(JSON.parse(body));
-    })
-  })
-  req.on('error', e => {
-    reject(e);
-  })
-  req.end();
-  })
-}
+// let sendCustomMessage = (inputToken, group, message) => {
+//  return new Promise ((resolve, reject) => {
+//    let options = {
+//     "method": "GET",
+//     "hostname": "enigmatic-wildwood-66230.herokuapp.com",
+//     "port": null,
+//     "path": "/sendCustomMessage",
+//     "headers": {
+//       "token": inputToken,
+//       "groupname": group,
+//       "mediumtype": "0",
+//       "message": message,
+//       "cache-control": "no-cache"
+//     }
+//    }
+//   let body = '';
+//   let req = https.request(options, res => {
+//     res.on('data', d => {
+//       body += d;
+//     })
+//     res.on('error', e => {
+//       reject(e);
+//     })
+//     res.on('end', ()=>{
+//       resolve(JSON.parse(body));
+//     })
+//   })
+//   req.on('error', e => {
+//     reject(e);
+//   })
+//   req.end();
+//   })
+// }
 
-let triggerSecretCommand = (inputToken, secretMsg) => {
- return new Promise ((resolve, reject) => {
-   let options = {
-    "method": "GET",
-    "hostname": "enigmatic-wildwood-66230.herokuapp.com",
-    "port": null,
-    "path": "/triggerSecretCommand",
-    "headers": {
-      "token": inputToken,
-      "secrettrigger": secretMsg,
-      "cache-control": "no-cache"
-    }
-   }
-  let body = '';
-  let req = https.request(options, res => {
-    res.on('data', d => {
-      body += d;
-    })
-    res.on('error', e => {
-      reject(e);
-    })
-    res.on('end', ()=>{
-      resolve(JSON.parse(body));
-    })
-  })
-  req.on('error', e => {
-    reject(e);
-  })
-  req.end();
- })
-}
+// let triggerSecretCommand = (inputToken, secretMsg) => {
+//  return new Promise ((resolve, reject) => {
+//    let options = {
+//     "method": "GET",
+//     "hostname": "enigmatic-wildwood-66230.herokuapp.com",
+//     "port": null,
+//     "path": "/triggerSecretCommand",
+//     "headers": {
+//       "token": inputToken,
+//       "secrettrigger": secretMsg,
+//       "cache-control": "no-cache"
+//     }
+//    }
+//   let body = '';
+//   let req = https.request(options, res => {
+//     res.on('data', d => {
+//       body += d;
+//     })
+//     res.on('error', e => {
+//       reject(e);
+//     })
+//     res.on('end', ()=>{
+//       resolve(JSON.parse(body));
+//     })
+//   })
+//   req.on('error', e => {
+//     reject(e);
+//   })
+//   req.end();
+//  })
+// }
